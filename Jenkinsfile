@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', 
+                git branch: 'master', 
                     url: 'https://github.com/ghaithelbenna/student-management-devops.git'
             }
         }
@@ -27,17 +27,12 @@ pipeline {
         stage('OWASP Dependency-Check') {
             steps {
                 dir('student-man-main') {
-                    sh '''
-                    mvn org.owasp:dependency-check-maven:check \
-                        -Dformat=HTML \
-                        -DfailBuildOnCVSS=7
-                    '''
+                    sh 'mvn org.owasp:dependency-check-maven:check -Dformat=HTML -DfailBuildOnCVSS=7'
                 }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', 
-                                     allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
                 }
             }
         }
@@ -70,13 +65,7 @@ pipeline {
         stage('Trivy Vulnerability Scan') {
             steps {
                 dir('student-man-main') {
-                    sh '''
-                    trivy image --ignore-unfixed \
-                                 --scanners vuln \
-                                 --severity HIGH,CRITICAL \
-                                 --exit-code 0 \
-                                 ${REGISTRY}/${IMAGE}:latest
-                    '''
+                    sh 'trivy image --ignore-unfixed --scanners vuln --severity HIGH,CRITICAL --exit-code 0 ${REGISTRY}/${IMAGE}:latest'
                 }
             }
         }
