@@ -14,11 +14,21 @@ pipeline {
             }
         }
 
-        stage('Scan') {
+        stage('Build') {
             steps {
                 dir('student-man-main') {
-                    withSonarQubeEnv(installationName: 'SonarQube') {
-                        sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar -Dsonar.host.url=http://localhost:32000'
+                    // Compile le projet et génère les classes
+                    sh './mvnw clean install -DskipTests'
+                }
+            }
+        }
+
+        stage('SonarQube Scan') {
+            steps {
+                dir('student-man-main') {
+                    withSonarQubeEnv('SonarQube') {
+                        // Analyse SonarQube en indiquant le chemin des classes compilées
+                        sh './mvnw sonar:sonar -Dsonar.host.url=http://localhost:32000 -Dsonar.java.binaries=target/classes'
                     }
                 }
             }
