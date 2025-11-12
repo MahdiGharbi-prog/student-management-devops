@@ -8,8 +8,10 @@ pipeline {
     stages {
         stage('Scan') {
             steps {
-                withSonarQubeEnv(installationName: 'SonarQube') {
-                    sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'
+                dir('student-man-main') { // se déplacer dans le dossier du projet
+                    withSonarQubeEnv(installationName: 'SonarQube') {
+                        sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'
+                    }
                 }
             }
         }
