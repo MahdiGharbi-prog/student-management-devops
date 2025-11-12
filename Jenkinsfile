@@ -3,12 +3,14 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
+        timestamps()
     }
 
     stages {
         stage('Prepare') {
             steps {
                 dir('student-man-main') {
+                    // S'assurer que mvnw est exécutable
                     sh 'chmod +x mvnw'
                 }
             }
@@ -17,7 +19,7 @@ pipeline {
         stage('Build') {
             steps {
                 dir('student-man-main') {
-                    // Compile le projet et génère les classes
+                    // Compiler le projet et générer les classes compilées
                     sh './mvnw clean install -DskipTests'
                 }
             }
@@ -26,12 +28,21 @@ pipeline {
         stage('SonarQube Scan') {
             steps {
                 dir('student-man-main') {
+                    // Exécuter le scan SonarQube
                     withSonarQubeEnv('SonarQube') {
-                        // Analyse SonarQube en indiquant le chemin des classes compilées
                         sh './mvnw sonar:sonar -Dsonar.host.url=http://localhost:32000 -Dsonar.java.binaries=target/classes'
                     }
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline terminé avec succès !'
+        }
+        failure {
+            echo 'Pipeline échoué. Vérifie les logs pour plus de détails.'
         }
     }
 }
