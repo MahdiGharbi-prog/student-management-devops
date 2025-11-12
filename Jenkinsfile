@@ -1,98 +1,10 @@
 pipeline {
-    agent any
+agent { label 'linux' }
+options {
+buildDiscarder(logRotator(numToKeepStr: '5'))
 
-    environment {
-        REGISTRY = "ghaithelbenna"
-        IMAGE    = "student-management"
-        DOCKERHUB_CRED = "dockerhub-ghaith"
-        SONAR_TOKEN    = "sonarqube-ghaith"
-    }
-
-    stages {
-        stage('Clone Repository') {
-            steps {
-                git branch: 'master', 
-                    url: 'https://github.com/ghaithelbenna/student-management-devops.git'
-            }
-        }
-
-        stage('Maven Build') {
-            steps {
-                dir('student-man-main') {
-                    sh 'mvn clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('OWASP Dependency-Check') {
-            steps {
-                dir('student-man-main') {
-                    sh 'mvn org.owasp:dependency-check-maven:check -Dformat=HTML -DfailBuildOnCVSS=7'
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
-                }
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        withCredentials([string(credentialsId: env.SONAR_TOKEN, variable: 'SONAR_LOGIN')]) {
-                            sh '''
-                            mvn sonar:sonar \
-                                -Dsonar.projectKey=student-management \
-                                -Dsonar.host.url=http://localhost:9000 \
-                                -Dsonar.login=$SONAR_LOGIN
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                dir('student-man-main') {
-                    sh 'docker build -t ${REGISTRY}/${IMAGE}:latest .'
-                }
-            }
-        }
-
-        stage('Trivy Vulnerability Scan') {
-            steps {
-                dir('student-man-main') {
-                    sh 'trivy image --ignore-unfixed --scanners vuln --severity HIGH,CRITICAL --exit-code 0 ${REGISTRY}/${IMAGE}:latest'
-                }
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                dir('student-man-main') {
-                    withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CRED,
-                                                     usernameVariable: 'DOCKER_USER',
-                                                     passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push ${REGISTRY}/${IMAGE}:latest
-                        docker logout
-                        '''
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline executed successfully: Build, Analysis, Security Scan & Push completed.'
-        }
-        failure {
-            echo 'Pipeline failed. Please check the logs for details.'
-        }
-    }
-}
+stages {
+stage('Scan') {
+steps {
+withSonarQubeEnv(installationName: 'SonarQube') {
+sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'
