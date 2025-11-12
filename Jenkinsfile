@@ -6,12 +6,20 @@ pipeline {
     }
 
     stages {
-        stage('Scan') {
+        stage('Checkout') {
             steps {
-                dir('student-man-main') {  // Assurez-vous de lancer mvnw dans le bon dossier
-                    sh 'chmod +x mvnw'  // <- rend mvnw exécutable
+                checkout scm
+            }
+        }
+
+        stage('SonarQube Scan') {
+            steps {
+                // On se place dans le dossier du projet où se trouve mvnw
+                dir('student-man-main') {
+                    // Injection des variables SonarQube configurées dans Jenkins
                     withSonarQubeEnv(installationName: 'SonarQube') {
-                        sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'
+                        // On précise explicitement l'URL du serveur SonarQube
+                        sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar -Dsonar.host.url=http://localhost:32000'
                     }
                 }
             }
