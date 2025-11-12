@@ -27,7 +27,7 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     withSonarQubeEnv('SonarQube') {
-                        sh './mvnw sonar:sonar -Dsonar.host.url=http:http://192.168.33.10:32000 -Dsonar.java.binaries=target/classes'
+                        sh './mvnw sonar:sonar -Dsonar.host.url=http:192.168.33.10:32000 -Dsonar.java.binaries=target/classes'
                     }
                 }
             }
