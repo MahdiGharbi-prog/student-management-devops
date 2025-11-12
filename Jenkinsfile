@@ -10,7 +10,6 @@ pipeline {
         stage('Prepare') {
             steps {
                 dir('student-man-main') {
-                    // S'assurer que mvnw est exécutable
                     sh 'chmod +x mvnw'
                 }
             }
@@ -19,7 +18,6 @@ pipeline {
         stage('Build') {
             steps {
                 dir('student-man-main') {
-                    // Compiler le projet et générer les classes compilées
                     sh './mvnw clean install -DskipTests'
                 }
             }
@@ -28,10 +26,17 @@ pipeline {
         stage('SonarQube Scan') {
             steps {
                 dir('student-man-main') {
-                    // Exécuter le scan SonarQube
                     withSonarQubeEnv('SonarQube') {
                         sh './mvnw sonar:sonar -Dsonar.host.url=http://localhost:32000 -Dsonar.java.binaries=target/classes'
                     }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
