@@ -37,7 +37,7 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 // Timeout suffisant pour que SonarQube finisse son traitement
-                timeout(time: 10, unit: 'MINUTES') {
+                timeout(time: 1, unit: 'hours') {
                     script {
                         // Attend la fin de l'analyse et récupère le status du Quality Gate
                         def qg = waitForQualityGate()
