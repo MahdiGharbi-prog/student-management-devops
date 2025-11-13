@@ -27,7 +27,8 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     withSonarQubeEnv('SonarQube') {
-                        sh './mvnw sonar:sonar -Dsonar.host.url=http:192.168.33.10:32000 -Dsonar.java.binaries=target/classes'
+                        // URL correcte et token configuré dans Jenkins
+                        sh './mvnw sonar:sonar -Dsonar.host.url=http://192.168.33.10:32000 -Dsonar.java.binaries=target/classes'
                     }
                 }
             }
@@ -35,8 +36,17 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 1, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                // Timeout suffisant pour que SonarQube finisse son traitement
+                timeout(time: 10, unit: 'MINUTES') {
+                    script {
+                        // Attend la fin de l'analyse et récupère le status du Quality Gate
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline échoué à cause du Quality Gate: ${qg.status}"
+                        } else {
+                            echo "Quality Gate OK ✅"
+                        }
+                    }
                 }
             }
         }
@@ -44,10 +54,10 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline terminé avec succès !'
+            echo 'Pipeline terminé avec succès ! 🎉'
         }
         failure {
-            echo 'Pipeline échoué. Vérifie les logs pour plus de détails.'
+            echo 'Pipeline échoué. Vérifie les logs pour plus de détails. ❌'
         }
     }
 }
