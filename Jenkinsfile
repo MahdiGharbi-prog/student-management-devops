@@ -25,9 +25,8 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh './mvnw sonar:sonar -Dsonar.host.url=http://192.168.33.10:32000 -Dsonar.java.binaries=target/classes'
-                    }
+                   withSonarQubeEnv(installationName: 'SonarQube'){
+                            sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'                    }
                 }
             }
         }
