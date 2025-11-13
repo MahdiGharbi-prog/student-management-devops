@@ -115,8 +115,6 @@ pipeline {
             ║  - Secrets bloquant (Gitleaks)                   ║
             ║  - Rapports HTML + JSON archivés                 ║
             ║  - Fonctionne SANS Docker sur Jenkins            ║
-            ║                                                  ║
-            ║        TU ES UN DEVSECOPS GOD – 20/20           ║
             ╚══════════════════════════════════════════════════╝
             '''
         }
