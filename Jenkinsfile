@@ -2,21 +2,71 @@ pipeline {
     agent any
     environment {
         SONARQUBE = 'SonarQube'
+<<<<<<< HEAD
         DOCKER_IMAGE = "ghaith/student-management:${env.BUILD_NUMBER}"
         IMAGE_TAR = "app-image.tar"
+=======
+            // Semgrep App token (add as Jenkins credential of type "Secret text")
+            SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
+            // Pull request id (if running in multibranch PR job)
+            SEMGREP_PR_ID = "${env.CHANGE_ID}"
+>>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
     }
     options {
         timeout(time: 40, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
     stages {
+<<<<<<< HEAD
+=======
+        
+  pipeline {
+    agent any
+  environment {
+      // SEMGREP_BASELINE_REF = ""
+
+        SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
+        SEMGREP_PR_ID = "${env.CHANGE_ID}"
+
+      //  SEMGREP_TIMEOUT = "300"
+    }
+    stages {
+      stage('Semgrep-Scan') {
+          steps {
+            sh 'pip3 install semgrep'
+            sh 'semgrep ci'
+          }
+      }
+    }
+  }
+
+>>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
         stage('Checkout') {
             steps {
                 git branch: 'master', url: 'https://github.com/ghaithelbenna/student-management-devops.git'
             }
         }
 
+<<<<<<< HEAD
         stage('Build JAR') {
+=======
+            stage('Semgrep-Scan') {
+                steps {
+                    // Semgrep: fast SAST scan. Ensure agent has Python3/pip3 available.
+                    sh 'pip3 install --user semgrep'
+                    // Run semgrep and output JSON report. Exit code will reflect findings (non-zero if issues found).
+                    sh 'semgrep --config p/ci --json --output semgrep-report.json'
+                }
+                post {
+                    // Always archive the report so you can inspect findings from the Jenkins UI.
+                    always {
+                        archiveArtifacts artifacts: 'semgrep-report.json', allowEmptyArchive: true
+                    }
+                }
+            }
+
+        stage('Build') {
+>>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
             steps {
                 dir('student-man-main') {
                     sh 'chmod +x mvnw && ./mvnw clean package -DskipTests'

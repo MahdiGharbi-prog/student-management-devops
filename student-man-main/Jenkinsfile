@@ -6,6 +6,9 @@ pipeline {
         IMAGE    = "student-management"
         DOCKERHUB_CRED = "dockerhub-ghaith"
         SONAR_TOKEN    = "sonarqube-ghaith"
+        // Semgrep token (add as Jenkins credential 'SEMGREP_APP_TOKEN')
+        SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
+        SEMGREP_PR_ID = "${env.CHANGE_ID}"
     }
 
     stages {
@@ -13,6 +16,20 @@ pipeline {
             steps {
                 git branch: 'main', 
                     url: 'https://github.com/ghaithelbenna/student-management-devops.git'
+            }
+        }
+
+        stage('Semgrep-Scan') {
+            steps {
+                // Ensure Python3/pip3 available on agent. Install semgrep for current user.
+                sh 'pip3 install --user semgrep'
+                // Run semgrep with CI config and output JSON report
+                sh 'semgrep --config p/ci --json --output semgrep-report.json'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'semgrep-report.json', allowEmptyArchive: true
+                }
             }
         }
 

@@ -1,0 +1,10 @@
+{
+  "sonarlint.connectedMode.project": {
+    "serverId": "local-sonarqube",
+    "projectKey": "mon-projet"
+  },
+  "eslint.validate": ["javascript", "typescript", "vue"],
+  "semgrep.enable": true
+}{
+    "java.compile.nullAnalysis.mode": "automatic"
+}
