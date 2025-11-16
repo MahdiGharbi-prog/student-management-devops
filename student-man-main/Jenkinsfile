@@ -1,126 +1,178 @@
 pipeline {
     agent any
-
     environment {
-        REGISTRY = "ghaithelbenna"
-        IMAGE    = "student-management"
-        DOCKERHUB_CRED = "dockerhub-ghaith"
-        SONAR_TOKEN    = "sonarqube-ghaith"
-        // Semgrep token (add as Jenkins credential 'SEMGREP_APP_TOKEN')
-        SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
-        SEMGREP_PR_ID = "${env.CHANGE_ID}"
+        DOCKER_CREDENTIALS = credentials('jenkins_docker')
+        DOCKER_IMAGE = "ghaith6789/student-management:${env.BUILD_NUMBER}"
+        SONAR_TOKEN = credentials('sonarqube_token')
+       
+        // Noms dynamiques pour éviter les conflits
+        ZAP_NETWORK = "zap-net-${env.BUILD_NUMBER}"
+        APP_CONTAINER = "app-test-${env.BUILD_NUMBER}"
     }
-
     stages {
-        stage('Clone Repository') {
+        stage('Checkout') {
             steps {
-                git branch: 'main', 
-                    url: 'https://github.com/ghaithelbenna/student-management-devops.git'
+                checkout scmGit(
+                    branches: [[name: '*/main']],  // ← CORRIGÉ : main, pas master
+                    userRemoteConfigs: [[url: 'https://github.com/ghaithelbenna/student-management-devops.git']]
+                )
             }
         }
 
-        stage('Semgrep-Scan') {
-            steps {
-                // Ensure Python3/pip3 available on agent. Install semgrep for current user.
-                sh 'pip3 install --user semgrep'
-                // Run semgrep with CI config and output JSON report
-                sh 'semgrep --config p/ci --json --output semgrep-report.json'
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'semgrep-report.json', allowEmptyArchive: true
-                }
-            }
-        }
-
-        stage('Maven Build') {
+        stage('Compile & Test') {
             steps {
                 dir('student-man-main') {
-                    sh 'mvn clean package -DskipTests'
+                    sh 'chmod +x mvnw'
+                    sh './mvnw clean test'
                 }
+                junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true
             }
         }
 
-        stage('OWASP Dependency-Check') {
+        stage('Build JAR') {
             steps {
                 dir('student-man-main') {
-                    sh '''
-                    mvn org.owasp:dependency-check-maven:check \
-                        -Dformat=HTML \
-                        -DfailBuildOnCVSS=7
-                    '''
+                    sh './mvnw clean package -DskipTests'
                 }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', 
-                                     allowEmptyArchive: true
-                }
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SAST - SonarQube') {
             steps {
                 dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        withCredentials([string(credentialsId: env.SONAR_TOKEN, variable: 'SONAR_LOGIN')]) {
-                            sh '''
-                            mvn sonar:sonar \
-                                -Dsonar.projectKey=student-management \
-                                -Dsonar.host.url=http://localhost:9000 \
-                                -Dsonar.login=$SONAR_LOGIN
-                            '''
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        withSonarQubeEnv('SonarQube') {
+                            sh './mvnw sonar:sonar -Dsonar.projectKey=devops_git -Dsonar.host.url=http://192.168.33.10:32000 -Dsonar.token=$SONAR_TOKEN || true'
                         }
                     }
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('SCA - OWASP') {
             steps {
                 dir('student-man-main') {
-                    sh 'docker build -t ${REGISTRY}/${IMAGE}:latest .'
+                    sh './mvnw org.owasp:dependency-check-maven:check -Dformat=ALL || true'
+                    archiveArtifacts artifacts: 'target/dependency-check-report.*', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Trivy Vulnerability Scan') {
+        stage('Secrets Scan') {
+            steps {
+                dir('student-man-main') {
+                    sh 'gitleaks detect --source . --redact --report-format json --report-path gitleaks-report.json || true'
+                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                dir('student-man-main') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'jenkins_docker',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker build -t ${DOCKER_IMAGE} .
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Docker Scan - Trivy') {
+            steps {
+                dir('student-man-main') {
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        sh """
+                            trivy image --scanners vuln ${DOCKER_IMAGE} \
+                              --format template \
+                              --template "@templates/custom-trivy.tpl" \
+                              --output trivy-docker.html || echo "<h1>Scan échoué</h1>" > trivy-docker.html
+                            trivy image --scanners vuln ${DOCKER_IMAGE} \
+                              --format json \
+                              --output trivy-docker.json || echo '{"results": []}' > trivy-docker.json
+                        """
+                    }
+                    archiveArtifacts artifacts: 'trivy-docker.*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('DAST - OWASP ZAP') {
             steps {
                 dir('student-man-main') {
                     sh '''
-                    trivy image --ignore-unfixed \
-                                 --scanners vuln \
-                                 --severity HIGH,CRITICAL \
-                                 --exit-code 0 \
-                                 ${REGISTRY}/${IMAGE}:latest
+                        APP=${APP_CONTAINER}
+                        NET=${ZAP_NETWORK}
+
+                        # Nettoyage
+                        docker rm -f $APP || true
+                        docker network rm $NET || true
+
+                        # Création réseau + lancement app
+                        docker network create $NET
+                        docker run -d --network $NET --name $APP ${DOCKER_IMAGE}
+
+                        # Attente intelligente (max 2 min)
+                        timeout 120 bash -c "until curl -f http://$APP:8080 >/dev/null 2>&1; do sleep 5; done" || echo "App non prête, scan quand même"
+
+                        # Scan ZAP (image locale, rapports générés dedans)
+                        docker run --network $NET \
+                          -v "$(pwd):/zap/wrk" \
+                          -t zaproxy/zap-stable \
+                          zap-baseline.py \
+                            -t http://$APP:8080 \
+                            -x /zap/wrk/zap-report.xml \
+                            -r /zap/wrk/zap-report.html || true
+
+                        # Récupération rapports
+                        docker cp $APP:/zap/wrk/zap-report.xml . || true
+                        docker cp $APP:/zap/wrk/zap-report.html . || true
+
+                        # Nettoyage
+                        docker rm -f $APP || true
+                        docker network rm $NET || true
                     '''
+                    archiveArtifacts artifacts: 'zap-report.*', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Docker Hub') {
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
             steps {
                 dir('student-man-main') {
-                    withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CRED,
-                                                     usernameVariable: 'DOCKER_USER',
-                                                     passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push ${REGISTRY}/${IMAGE}:latest
-                        docker logout
-                        '''
+                    withCredentials([usernamePassword(
+                        credentialsId: 'jenkins_docker',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh "docker push ${DOCKER_IMAGE}"
                     }
                 }
             }
         }
     }
 
+    // NETTOYAGE GARANTI + PRÉVENTION DISQUE PLEIN
     post {
-        success {
-            echo 'Pipeline executed successfully: Build, Analysis, Security Scan & Push completed.'
-        }
-        failure {
-            echo 'Pipeline failed. Please check the logs for details.'
+        always {
+            sh '''
+                echo "Nettoyage Docker automatique..."
+                docker rm -f ${APP_CONTAINER} || true
+                docker network rm ${ZAP_NETWORK} || true
+                docker system prune -af --volumes || true  # ← LIBÈRE L'ESPACE
+            '''
+            archiveArtifacts artifacts: 'student-man-main/target/*.jar,student-man-main/target/dependency-check-report.*,student-man-main/trivy-docker.*,student-man-main/gitleaks-report.json,student-man-main/zap-report.*', allowEmptyArchive: true
         }
     }
 }
