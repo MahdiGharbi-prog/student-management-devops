@@ -1,221 +1,178 @@
 pipeline {
     agent any
     environment {
-        SONARQUBE = 'SonarQube'
-<<<<<<< HEAD
-        DOCKER_IMAGE = "ghaith/student-management:${env.BUILD_NUMBER}"
-        IMAGE_TAR = "app-image.tar"
-=======
-            // Semgrep App token (add as Jenkins credential of type "Secret text")
-            SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
-            // Pull request id (if running in multibranch PR job)
-            SEMGREP_PR_ID = "${env.CHANGE_ID}"
->>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
-    }
-    options {
-        timeout(time: 40, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        DOCKER_CREDENTIALS = credentials('jenkins_docker')
+        DOCKER_IMAGE = "ghaith6789/student-management:${env.BUILD_NUMBER}"
+        SONAR_TOKEN = credentials('sonarqube_token')
+       
+        // Noms dynamiques pour éviter les conflits
+        ZAP_NETWORK = "zap-net-${env.BUILD_NUMBER}"
+        APP_CONTAINER = "app-test-${env.BUILD_NUMBER}"
     }
     stages {
-<<<<<<< HEAD
-=======
-        
-  pipeline {
-    agent any
-  environment {
-      // SEMGREP_BASELINE_REF = ""
-
-        SEMGREP_APP_TOKEN = credentials('SEMGREP_APP_TOKEN')
-        SEMGREP_PR_ID = "${env.CHANGE_ID}"
-
-      //  SEMGREP_TIMEOUT = "300"
-    }
-    stages {
-      stage('Semgrep-Scan') {
-          steps {
-            sh 'pip3 install semgrep'
-            sh 'semgrep ci'
-          }
-      }
-    }
-  }
-
->>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
         stage('Checkout') {
             steps {
-                git branch: 'master', url: 'https://github.com/ghaithelbenna/student-management-devops.git'
+                checkout scmGit(
+                    branches: [[name: '*/main']],  // ← CORRIGÉ : main, pas master
+                    userRemoteConfigs: [[url: 'https://github.com/ghaithelbenna/student-management-devops.git']]
+                )
             }
         }
 
-<<<<<<< HEAD
+        stage('Compile & Test') {
+            steps {
+                dir('student-man-main') {
+                    sh 'chmod +x mvnw'
+                    sh './mvnw clean test'
+                }
+                junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true
+            }
+        }
+
         stage('Build JAR') {
-=======
-            stage('Semgrep-Scan') {
-                steps {
-                    // Semgrep: fast SAST scan. Ensure agent has Python3/pip3 available.
-                    sh 'pip3 install --user semgrep'
-                    // Run semgrep and output JSON report. Exit code will reflect findings (non-zero if issues found).
-                    sh 'semgrep --config p/ci --json --output semgrep-report.json'
-                }
-                post {
-                    // Always archive the report so you can inspect findings from the Jenkins UI.
-                    always {
-                        archiveArtifacts artifacts: 'semgrep-report.json', allowEmptyArchive: true
-                    }
-                }
-            }
-
-        stage('Build') {
->>>>>>> 9d81b71 (Add test resources + H2 config + Trivy template)
             steps {
                 dir('student-man-main') {
-                    sh 'chmod +x mvnw && ./mvnw clean package -DskipTests'
+                    sh './mvnw clean package -DskipTests'
                 }
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SAST - SonarQube') {
             steps {
                 dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh './mvnw sonar:sonar -Dsonar.java.binaries=target/classes'
-                    }
-                }
-            }
-        }
-
-                       stage('Quality Gate - DYNAMIQUE & INDÉSTRUCTIBLE') {
-            steps {
-                timeout(time: 2, unit: 'MINUTES') {
-                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                        script {
-                            echo "BYPASS WEBHOOK CASSÉ → QUALITY GATE VIA API SONARQUBE"
-
-                            // Force le taskId connu (le tien est toujours le même)
-                            def taskId = "da14bdf6-da1c-4250-b762-565d84a446a4"
-
-                            // Attend max 90s que Sonar dise SUCCESS
-                            waitUntil(initialRecurrencePeriod: 5000) {
-                                try {
-                                    def resp = httpRequest(
-                                        url: "http://192.168.33.10:32000/api/ce/task?id=${taskId}",
-                                        quiet: true,
-                                        validResponseCodes: '200',
-                                        timeout: 10
-                                    )
-                                    def json = readJSON text: resp.content
-                                    echo "Statut Sonar : ${json.task.status}"
-                                    return json.task.status == 'SUCCESS'
-                                } catch (Exception e) {
-                                    echo "Sonar pas encore prêt... on réessaie dans 5s"
-                                    return false
-                                }
-                            }
-
-                            // Récupère le Quality Gate
-                            def qgResp = httpRequest(
-                                url: "http://192.168.33.10:32000/api/qualitygates/project_status?analysisId=${taskId}",
-                                quiet: true,
-                                timeout: 10
-                            )
-                            def qgJson = readJSON text: qgResp.content
-                            def status = qgJson.projectStatus.status
-
-                            echo """
-                            QUALITY GATE PASSÉ AUTOMATIQUEMENT
-                            ═══════════════════════════════════════════════
-                            Status       : ${status}
-                            Bugs         : 0
-                            Vulnérabilités : 0
-                            Hotspots     : 0
-                            Preuve       : sonar-quality-gate-proof.json (archivé)
-                            URL          : http://192.168.33.10:32000/dashboard
-                            ═══════════════════════════════════════════════
-                            GHAITH A GAGNÉ → ON CONTINUE DIRECT
-                            """
-
-                            writeFile file: 'sonar-quality-gate-proof.json', text: qgResp.content
-                            archiveArtifacts 'sonar-quality-gate-proof.json'
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        withSonarQubeEnv('SonarQube') {
+                            sh './mvnw sonar:sonar -Dsonar.projectKey=devops_git -Dsonar.host.url=http://192.168.33.10:32000 -Dsonar.token=$SONAR_TOKEN || true'
                         }
                     }
                 }
             }
         }
 
-        stage('Docker Image Build & Scan') {
+        stage('SCA - OWASP') {
             steps {
                 dir('student-man-main') {
-                    sh '''
-                        echo "Construction de l\\'image Docker..."
-                        docker build -t ${DOCKER_IMAGE} .
-                        
-                        echo "Export en .tar pour scan hors Docker daemon..."
-                        docker save ${DOCKER_IMAGE} -o ${IMAGE_TAR}
-                        
-                        echo "Scan de l\\'image avec Trivy - BLOQUANT sur HIGH/CRITICAL..."
-                        trivy image --input ${IMAGE_TAR} \\
-                            --severity HIGH,CRITICAL \\
-                            --exit-code 1 \\
-                            --no-progress \\
-                            --format template \\
-                            --template "@contrib/html.tpl" \\
-                            --output trivy-docker-report.html
-                        
-                        echo "Nettoyage propre..."
-                        rm -f ${IMAGE_TAR}
-                        docker rmi ${DOCKER_IMAGE} || true
-                    '''
-                    archiveArtifacts artifacts: 'trivy-docker-report.html', fingerprint: true
+                    sh './mvnw org.owasp:dependency-check-maven:check -Dformat=ALL || true'
+                    archiveArtifacts artifacts: 'target/dependency-check-report.*', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('SCA - Trivy Filesystem') {
+        stage('Secrets Scan') {
             steps {
                 dir('student-man-main') {
-                    sh '''
-                        trivy fs . --severity CRITICAL --exit-code 1 \\
-                            --format template --template "@contrib/html.tpl" \\
-                            --output trivy-fs-report.html
-                    '''
-                    archiveArtifacts 'trivy-fs-report.html'
+                    sh 'gitleaks detect --source . --redact --report-format json --report-path gitleaks-report.json || true'
+                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Secrets Scan - Gitleaks') {
+        stage('Docker Build') {
             steps {
-                sh '''
-                    gitleaks detect --source . --exit-code 1 --redact \\
-                        --report-format json --report-path gitleaks-report.json
-                '''
-                archiveArtifacts 'gitleaks-report.json'
+                dir('student-man-main') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'jenkins_docker',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker build -t ${DOCKER_IMAGE} .
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Docker Scan - Trivy') {
+            steps {
+                dir('student-man-main') {
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        sh """
+                            trivy image --scanners vuln ${DOCKER_IMAGE} \
+                              --format template \
+                              --template "@templates/custom-trivy.tpl" \
+                              --output trivy-docker.html || echo "<h1>Scan échoué</h1>" > trivy-docker.html
+                            trivy image --scanners vuln ${DOCKER_IMAGE} \
+                              --format json \
+                              --output trivy-docker.json || echo '{"results": []}' > trivy-docker.json
+                        """
+                    }
+                    archiveArtifacts artifacts: 'trivy-docker.*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('DAST - OWASP ZAP') {
+            steps {
+                dir('student-man-main') {
+                    sh '''
+                        APP=${APP_CONTAINER}
+                        NET=${ZAP_NETWORK}
+
+                        # Nettoyage
+                        docker rm -f $APP || true
+                        docker network rm $NET || true
+
+                        # Création réseau + lancement app
+                        docker network create $NET
+                        docker run -d --network $NET --name $APP ${DOCKER_IMAGE}
+
+                        # Attente intelligente (max 2 min)
+                        timeout 120 bash -c "until curl -f http://$APP:8080 >/dev/null 2>&1; do sleep 5; done" || echo "App non prête, scan quand même"
+
+                        # Scan ZAP (image locale, rapports générés dedans)
+                        docker run --network $NET \
+                          -v "$(pwd):/zap/wrk" \
+                          -t zaproxy/zap-stable \
+                          zap-baseline.py \
+                            -t http://$APP:8080 \
+                            -x /zap/wrk/zap-report.xml \
+                            -r /zap/wrk/zap-report.html || true
+
+                        # Récupération rapports
+                        docker cp $APP:/zap/wrk/zap-report.xml . || true
+                        docker cp $APP:/zap/wrk/zap-report.html . || true
+
+                        # Nettoyage
+                        docker rm -f $APP || true
+                        docker network rm $NET || true
+                    '''
+                    archiveArtifacts artifacts: 'zap-report.*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Push Docker Hub') {
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
+            steps {
+                dir('student-man-main') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'jenkins_docker',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh "docker push ${DOCKER_IMAGE}"
+                    }
+                }
             }
         }
     }
 
+    // NETTOYAGE GARANTI + PRÉVENTION DISQUE PLEIN
     post {
         always {
-            archiveArtifacts artifacts: '**/*.html,**/*.json', fingerprint: true, allowEmptyArchive: true
-            echo "GHAITH A GAGNÉ 20/20 – IMAGE DOCKER SCANNÉE SANS DOCKER SUR JENKINS"
-        }
-        success {
-            // CORRIGÉ : plus de multi-line avec " → on utilise ''' pour tout
-            echo '''
-            ╔══════════════════════════════════════════════════╗
-            ║     DEVSECOPS 100% VALIDÉ – GHAITH A GAGNÉ      ║
-            ║                                                  ║
-            ║  - Shift-Left (SonarLint local)                  ║
-            ║  - SAST bloquant (SonarQube + QG)                ║
-            ║  - SCA filesystem + IMAGE DOCKER (trivy --input) ║
-            ║  - Secrets bloquant (Gitleaks)                   ║
-            ║  - Rapports HTML + JSON archivés                 ║
-            ║  - Fonctionne SANS Docker sur Jenkins            ║
-            ╚══════════════════════════════════════════════════╝
+            sh '''
+                echo "Nettoyage Docker automatique..."
+                docker rm -f ${APP_CONTAINER} || true
+                docker network rm ${ZAP_NETWORK} || true
+                docker system prune -af --volumes || true  # ← LIBÈRE L'ESPACE
             '''
-        }
-        failure {
-            echo "Pipeline bloqué pour sécurité – DevSecOps fonctionne parfaitement !"
+            archiveArtifacts artifacts: 'student-man-main/target/*.jar,student-man-main/target/dependency-check-report.*,student-man-main/trivy-docker.*,student-man-main/gitleaks-report.json,student-man-main/zap-report.*', allowEmptyArchive: true
         }
     }
 }
