@@ -13,7 +13,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scmGit(
-                    branches: [[name: '*/main']],  // ← CORRIGÉ : main, pas master
+                    branches: [[name: '*/master']],  // Branche réelle
                     userRemoteConfigs: [[url: 'https://github.com/ghaithelbenna/student-management-devops.git']]
                 )
             }
@@ -170,7 +170,7 @@ pipeline {
                 echo "Nettoyage Docker automatique..."
                 docker rm -f ${APP_CONTAINER} || true
                 docker network rm ${ZAP_NETWORK} || true
-                docker system prune -af --volumes || true  # ← LIBÈRE L'ESPACE
+                docker system prune -af --volumes || true
             '''
             archiveArtifacts artifacts: 'student-man-main/target/*.jar,student-man-main/target/dependency-check-report.*,student-man-main/trivy-docker.*,student-man-main/gitleaks-report.json,student-man-main/zap-report.*', allowEmptyArchive: true
         }
