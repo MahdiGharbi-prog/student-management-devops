@@ -1,6 +1,5 @@
 package tn.esprit.studentmanagement.services;
 
-import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import tn.esprit.studentmanagement.repositories.EnrollmentRepository;
@@ -19,16 +18,26 @@ public class EnrollmentService implements IEnrollment {
 
     @Override
     public Enrollment getEnrollmentById(Long idEnrollment) {
-        return enrollmentRepository.findById(idEnrollment).get();
+        if (idEnrollment == null) {
+            throw new IllegalArgumentException("idEnrollment must not be null");
+        }
+        long id = idEnrollment;
+        return enrollmentRepository.findById(id).orElse(null);
     }
 
     @Override
+    @SuppressWarnings("null")
     public Enrollment saveEnrollment(Enrollment enrollment) {
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        return saved;
     }
 
     @Override
     public void deleteEnrollment(Long idEnrollment) {
-enrollmentRepository.deleteById(idEnrollment);
+        if (idEnrollment == null) {
+            throw new IllegalArgumentException("idEnrollment must not be null");
+        }
+        long id = idEnrollment;
+        enrollmentRepository.deleteById(id);
     }
 }

@@ -1,0 +1,9 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: "Bloque les secrets (API keys, mots de passe)"
+        entry: gitleaks detect --no-git
+        language: system
+        pass_filenames: false

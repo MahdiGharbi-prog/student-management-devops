@@ -1,61 +1,65 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Trivy Scan - Student Management (ghaith6789)</title>
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
-    .header { text-align: center; padding: 30px; background: linear-gradient(135deg, #1e293b, #334155); border-radius: 12px; margin-bottom: 30px; }
-    .header h1 { color: #38bdf8; margin: 0; font-size: 2.5em; }
-    .header p { color: #94a3b8; font-size: 1.1em; }
-    .container { max-width: 1200px; margin: auto; background: #1e293b; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { background: #334155; color: #38bdf8; padding: 15px; text-align: left; }
-    td { padding: 12px; border-bottom: 1px solid #475569; }
-    .critical { background: #7f1d1d; color: #fca5a5; }
-    .high { background: #9a3412; color: #fdba74; }
-    .medium { background: #78350f; color: #fbbf24; }
-    .footer { text-align: center; margin-top: 40px; color: #64748b; font-size: 0.9em; }
-    .badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-weight: bold; font-size: 0.8em; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Trivy Scan Report - {{ .ArtifactName }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+        h1 { color: #2c3e50; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .critical { background-color: #e74c3c; color: white; }
+        .high { background-color: #e67e22; color: white; }
+        .medium { background-color: #f1c40f; }
+        .low { background-color: #95a5a6; }
+        .unknown { background-color: #7f8c8d; }
+        .summary { background: #ecf0f1; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Trivy Security Scan</h1>
-    <p><strong>Image:</strong> {{ .ArtifactName }} | <strong>Scan:</strong> {{ now }} | <strong>ghaith6789</strong></p>
-  </div>
+    <h1>Trivy Vulnerability Scan Report</h1>
+    <div class="summary">
+        <p><strong>Image:</strong> <code>{{ .ArtifactName }}</code></p>
+        <p><strong>Scanned on:</strong> {{ now }}</p>
+        <p><strong>OS:</strong> {{ if .OS }} {{ .OS.Family }} {{ .OS.Name }} {{ end }}</p>
+    </div>
 
-  <div class="container">
     {{ range .Results }}
-      {{ if .Vulnerabilities }}
-        <h2>Vulnérabilités détectées ({{ len .Vulnerabilities }})</h2>
-        <table>
-          <tr>
-            <th>ID</th>
-            <th>Sévérité</th>
-            <th>Package</th>
-            <th>Version</th>
-            <th>Description</th>
-          </tr>
-          {{ range .Vulnerabilities }}
-            <tr class="{{ .Severity | lower }}">
-              <td><strong>{{ .VulnerabilityID }}</strong></td>
-              <td><span class="badge {{ .Severity | lower }}">{{ .Severity }}</span></td>
-              <td>{{ .PkgName }}</td>
-              <td>{{ .InstalledVersion }}</td>
-              <td>{{ .Title }}</td>
-            </tr>
-          {{ end }}
-        </table>
-      {{ else }}
-        <h2>Aucune vulnérabilité détectée</h2>
-        <p>Toutes les dépendances sont sécurisées.</p>
-      {{ end }}
+        {{ if .Vulnerabilities }}
+            <h2>{{ .Target }} ({{ len .Vulnerabilities }} vulnerabilities)</h2>
+            <table>
+                <tr>
+                    <th>Vulnerability ID</th>
+                    <th>Severity</th>
+                    <th>Package</th>
+                    <th>Installed</th>
+                    <th>Fixed In</th>
+                    <th>Title</th>
+                </tr>
+                {{ range .Vulnerabilities }}
+                <tr class="{{ .Severity | lower }}">
+                    <td><a href="https://nvd.nist.gov/vuln/detail/{{ .VulnerabilityID }}" target="_blank">{{ .VulnerabilityID }}</a></td>
+                    <td>{{ .Severity }}</td>
+                    <td>{{ .PkgName }}</td>
+                    <td>{{ .InstalledVersion }}</td>
+                    <td>{{ if .FixedVersion }}{{ .FixedVersion }}{{ else }}—{{ end }}</td>
+                    <td>{{ .Title }}</td>
+                </tr>
+                {{ end }}
+            </table>
+        {{ else }}
+            <h2>{{ .Target }}</h2>
+            <p>No vulnerabilities found.</p>
+        {{ end }}
+    {{ else }}
+        <h2>No results found</h2>
     {{ end }}
-  </div>
 
-  <div class="footer">
-    <p>Généré par <strong>Trivy</strong> | Pipeline DevSecOps par <strong>Ghaith El Benna</strong> © 2025</p>
-  </div>
+    <hr>
+    <footer>
+        <p>Generated by <strong>Trivy</strong> on {{ now }}</p>
+    </footer>
 </body>
 </html>

@@ -1,10 +1,51 @@
 {
+  // === SONARLINT : Connecté à ton SonarQube ===
+  "sonarlint.connectedMode.servers": [
+    {
+      "serverId": "local-sonarqube",
+      "serverUrl": "http://192.168.33.10:32000"
+    }
+  ],
   "sonarlint.connectedMode.project": {
-    "serverId": "local-sonarqube",
-    "projectKey": "mon-projet"
+    "connectionId": "local-sonarqube",
+    "projectKey": "devops_git"
   },
-  "eslint.validate": ["javascript", "typescript", "vue"],
-  "semgrep.enable": true
-}{
-    "java.compile.nullAnalysis.mode": "automatic"
+  // === SEMGREP : SAST + Secrets (Java, Spring, YAML) ===
+  "semgrep.enable": true,
+  "semgrep.scanOnSave": true,
+  "semgrep.scanConfiguration": "auto",
+  "semgrep.rules": [
+    "p/ci",
+    "p/secrets",
+    "p/java",
+    "p/spring"
+  ],
+  // === JAVA + SPRING BOOT ===
+  "java.jdt.ls.java.home": "/usr/lib/jvm/java-17-openjdk-amd64",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.sources.autoDetect": "on",
+  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:+UseZGC -Xmx2G",
+  // === MAVEN (ton mvnw) ===
+  "maven.executable.path": "./mvnw",
+  "java.import.maven.enabled": true,
+  // === FORMATAGE & CODE STYLE ===
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
+  "java.format.settings.profile": "GoogleStyle",
+  // === ESLINT (si frontend) ===
+  "eslint.validate": [
+    "javascript",
+    "typescript",
+    "vue"
+  ],
+  // === FICHIERS À EXCLURE ===
+  "files.exclude": {
+    "**/target": true,
+    "**/.mvn": true,
+    "**/node_modules": true
+  },
+  // === DOCKER ===
+  "docker.showExplorer": true
 }

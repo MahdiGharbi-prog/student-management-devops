@@ -1,34 +1,53 @@
 package tn.esprit.studentmanagement.controllers;
 
 import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.studentmanagement.entities.Student;
 import tn.esprit.studentmanagement.services.IStudentService;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
-@RequestMapping("/students")
+@RequestMapping("/api/students")
 @CrossOrigin(origins = "http://localhost:4200")
 @AllArgsConstructor
 public class StudentController {
-IStudentService studentService;
 
-    @GetMapping("/getAllStudents")
-    public List<Student> getAllStudents() { return studentService.getAllStudents(); }
+    private final IStudentService studentService;
 
-    @GetMapping("/getStudent/{id}")
-    public Student getStudent(@PathVariable Long id) { return studentService.getStudentById(id); }
-
-    @PostMapping("/createStudent")
-    public Student createStudent(@RequestBody Student student) { return studentService.saveStudent(student); }
-
-    @PutMapping("/updateStudent")
-    public Student updateStudent(@RequestBody Student student) {
-        return studentService.saveStudent(student);
+    // GET: Récupérer tous les étudiants
+    @GetMapping
+    public ResponseEntity<List<Student>> getAllStudents() {
+        return ResponseEntity.ok(studentService.getAllStudents());
     }
 
-    @DeleteMapping("/deleteStudent/{id}")
-    public void deleteStudent(@PathVariable Long id) { studentService.deleteStudent(id); }
+    // GET: Récupérer un étudiant par ID
+    @GetMapping("/{id}")
+    public ResponseEntity<Student> getStudent(@PathVariable Long id) {
+        return ResponseEntity.ok(studentService.getStudentById(id));
+    }
+
+    // POST: Créer un étudiant
+    @PostMapping
+    public ResponseEntity<Student> createStudent(@Valid @RequestBody Student student) {
+        return ResponseEntity.status(201).body(studentService.saveStudent(student));
+    }
+
+    // PUT: Mettre à jour un étudiant
+    @PutMapping("/{id}")
+    public ResponseEntity<Student> updateStudent(@PathVariable Long id,
+            @Valid @RequestBody Student student) {
+        student.setId(id);
+        return ResponseEntity.ok(studentService.saveStudent(student));
+    }
+
+    // DELETE: Supprimer un étudiant
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
+        studentService.deleteStudent(id);
+        return ResponseEntity.noContent().build();
+    }
+
 }
