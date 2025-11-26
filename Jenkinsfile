@@ -166,13 +166,8 @@ pipeline {
     // NETTOYAGE GARANTI + PRÉVENTION DISQUE PLEIN
     post {
         always {
-            sh '''
-                echo "Nettoyage Docker automatique..."
-                docker rm -f ${APP_CONTAINER} || true
-                docker network rm ${ZAP_NETWORK} || true
-                docker system prune -af --volumes || true
-            '''
-            archiveArtifacts artifacts: 'student-man-main/target/*.jar,student-man-main/target/dependency-check-report.*,student-man-main/trivy-docker.*,student-man-main/gitleaks-report.json,student-man-main/zap-report.*', allowEmptyArchive: true
+            echo 'ok'
+           
         }
     }
 }
