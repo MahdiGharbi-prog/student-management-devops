@@ -159,6 +159,7 @@ pipeline {
 
     post {
         always {
+            
             echo '🎯 Pipeline finished. Reports generated successfully.'
         }
         failure {
