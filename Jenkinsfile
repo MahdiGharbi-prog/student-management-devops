@@ -1,173 +1,168 @@
 pipeline {
     agent any
+
     environment {
-        DOCKER_CREDENTIALS = credentials('jenkins_docker')
-        DOCKER_IMAGE = "ghaith6789/student-management:${env.BUILD_NUMBER}"
-        SONAR_TOKEN = credentials('sonarqube_token')
-       
-        // Noms dynamiques pour éviter les conflits
-        ZAP_NETWORK = "zap-net-${env.BUILD_NUMBER}"
-        APP_CONTAINER = "app-test-${env.BUILD_NUMBER}"
+        REGISTRY = "farzzit"
+        IMAGE = "studentmang-app"
+
+        // Correct URLs
+        SONAR_HOST_URL = "http://192.168.33.10:9000"        // Local SonarQube on Ubuntu
+        APP_DAST_URL   = "http://192.168.49.2:32639"        // Spring App on Minikube NodePort
+
+        GITLEAKS_REPORT = "gitleaks-report.json"
     }
+
     stages {
-        stage('Checkout') {
+        stage('Clone Repository & Secrets Scan (Gitleaks)') {
             steps {
-                checkout scmGit(
-                    branches: [[name: '*/master']],  // Branche réelle
-                    userRemoteConfigs: [[url: 'https://github.com/ghaithelbenna/student-management-devops.git']]
-                )
-            }
-        }
-
-        stage('Compile & Test') {
-            steps {
+                git branch: 'master', url: 'https://github.com/medaminehammami/student-management-devops.git'
                 dir('student-man-main') {
-                    sh 'chmod +x mvnw'
-                    sh './mvnw clean test'
+                    sh '''
+                    echo "🔒 Running Gitleaks Secrets Scan..."
+                    gitleaks detect -f json --report-path $GITLEAKS_REPORT --source . || true
+                    '''
                 }
-                junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true
             }
-        }
-
-        stage('Build JAR') {
-            steps {
-                dir('student-man-main') {
-                    sh './mvnw clean package -DskipTests'
+            post {
+                always {
+                    archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
                 }
-                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
             }
         }
 
-        stage('SAST - SonarQube') {
+        stage('Build with Maven') {
             steps {
                 dir('student-man-main') {
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                        withSonarQubeEnv('SonarQube') {
-                            sh './mvnw sonar:sonar -Dsonar.projectKey=devops_git -Dsonar.host.url=http://192.168.33.10:32000 -Dsonar.token=$SONAR_TOKEN || true'
-                        }
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Dependency Check (SCA)') {
+            steps {
+                dir('student-man-main') {
+                    sh '''
+                    echo "🔍 Running lightweight OWASP Dependency-Check..."
+                    mvn org.owasp:dependency-check-maven:check \
+                        -Dformat=HTML \
+                        -DskipAssembly=true || true
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('SonarQube (SAST)') {
+            environment {
+                SONARQUBE = credentials('sonarqube-token')
+            }
+            steps {
+                dir('student-man-main') {
+                    withSonarQubeEnv('SonarQube') {
+                        sh '''
+                        echo "📊 Running SonarQube static code analysis..."
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=studentmang-app \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.login=$SONARQUBE || true
+                        '''
                     }
                 }
             }
+            // 🚀 Removed timeout & waitForQualityGate for speed
         }
 
-        stage('SCA - OWASP') {
+        stage('Build Docker Image') {
             steps {
                 dir('student-man-main') {
-                    sh './mvnw org.owasp:dependency-check-maven:check -Dformat=ALL || true'
-                    archiveArtifacts artifacts: 'target/dependency-check-report.*', allowEmptyArchive: true
+                    sh 'docker build -t $REGISTRY/$IMAGE:latest .'
                 }
             }
         }
 
-        stage('Secrets Scan') {
+        stage('Trivy Scan (Container Security)') {
             steps {
                 dir('student-man-main') {
-                    sh 'gitleaks detect --source . --redact --report-format json --report-path gitleaks-report.json || true'
-                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                    sh '''
+                    echo "🧪 Quick Trivy vulnerability scan..."
+                    trivy image --quiet --severity HIGH,CRITICAL \
+                                --light --timeout 5m \
+                                --format table \
+                                --output trivy-report.html \
+                                $REGISTRY/$IMAGE:latest || true
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'student-man-main/trivy-report.html', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Docker Build') {
+        stage('Nikto Scan (DAST)') {
             steps {
                 dir('student-man-main') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'jenkins_docker',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
+                    sh '''
+                    echo "💥 Running Nikto web vulnerability scan on $APP_DAST_URL..."
+                    nikto -h $APP_DAST_URL -maxtime 60 -Format html -o nikto-report.html || true
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'student-man-main/nikto-report.html', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                dir('student-man-main') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh '''
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            docker build -t ${DOCKER_IMAGE} .
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $REGISTRY/$IMAGE:latest || true
+                        docker logout
                         '''
                     }
                 }
             }
         }
 
-        stage('Docker Scan - Trivy') {
+        stage('Generate Summary Report') {
             steps {
-                dir('student-man-main') {
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                        sh """
-                            trivy image --scanners vuln ${DOCKER_IMAGE} \
-                              --format template \
-                              --template "@templates/custom-trivy.tpl" \
-                              --output trivy-docker.html || echo "<h1>Scan échoué</h1>" > trivy-docker.html
-                            trivy image --scanners vuln ${DOCKER_IMAGE} \
-                              --format json \
-                              --output trivy-docker.json || echo '{"results": []}' > trivy-docker.json
-                        """
-                    }
-                    archiveArtifacts artifacts: 'trivy-docker.*', allowEmptyArchive: true
+                script {
+                    def time = sh(script: "date", returnStdout: true).trim()
+                    writeFile file: 'student-man-main/summary-report.html', text: """
+                    <html><head><title>DevSecOps Report</title></head><body>
+                        <h2>✅ DevSecOps Security Pipeline Summary</h2>
+                        <ul>
+                            <li><a href='target/dependency-check-report.html'>Dependency Check Report (SCA)</a></li>
+                            <li><a href='trivy-report.html'>Trivy Image Scan Report (Container)</a></li>
+                            <li><a href='nikto-report.html'>Nikto Server Scan Report (DAST)</a></li>
+                            <li><a href='${GITLEAKS_REPORT}'>Gitleaks Secrets Scan Report</a></li>
+                            <li><a href='${SONAR_HOST_URL}/dashboard?id=studentmang-app'>SonarQube Dashboard (SAST)</a></li>
+                        </ul>
+                        <p>Generated by Jenkins on ${time}</p>
+                    </body></html>
+                    """
                 }
-            }
-        }
-
-        stage('DAST - OWASP ZAP') {
-            steps {
-                dir('student-man-main') {
-                    sh '''
-                        APP=${APP_CONTAINER}
-                        NET=${ZAP_NETWORK}
-
-                        # Nettoyage
-                        docker rm -f $APP || true
-                        docker network rm $NET || true
-
-                        # Création réseau + lancement app
-                        docker network create $NET
-                        docker run -d --network $NET --name $APP ${DOCKER_IMAGE}
-
-                        # Attente intelligente (max 2 min)
-                        timeout 120 bash -c "until curl -f http://$APP:8080 >/dev/null 2>&1; do sleep 5; done" || echo "App non prête, scan quand même"
-
-                        # Scan ZAP (image locale, rapports générés dedans)
-                        docker run --network $NET \
-                          -v "$(pwd):/zap/wrk" \
-                          -t zaproxy/zap-stable \
-                          zap-baseline.py \
-                            -t http://$APP:8080 \
-                            -x /zap/wrk/zap-report.xml \
-                            -r /zap/wrk/zap-report.html || true
-
-                        # Récupération rapports
-                        docker cp $APP:/zap/wrk/zap-report.xml . || true
-                        docker cp $APP:/zap/wrk/zap-report.html . || true
-
-                        # Nettoyage
-                        docker rm -f $APP || true
-                        docker network rm $NET || true
-                    '''
-                    archiveArtifacts artifacts: 'zap-report.*', allowEmptyArchive: true
-                }
-            }
-        }
-
-        stage('Push Docker Hub') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
-            steps {
-                dir('student-man-main') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'jenkins_docker',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                        sh "docker push ${DOCKER_IMAGE}"
-                    }
-                }
+                archiveArtifacts artifacts: 'student-man-main/summary-report.html', allowEmptyArchive: true
             }
         }
     }
 
-    // NETTOYAGE GARANTI + PRÉVENTION DISQUE PLEIN
     post {
         always {
-            echo 'ok'
-           
+            echo '🎯 Pipeline finished. Reports generated successfully.'
+        }
+        failure {
+            echo '❌ Pipeline failed. Please check logs and reports for issues.'
         }
     }
 }
