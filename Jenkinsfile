@@ -179,11 +179,10 @@ pipeline {
 
     post {
         always {
-            
             echo '🎯 Pipeline finished. Reports generated successfully.'
         }
         failure {
-            echo '❌ Pipeline failed. Check logs and reports.'
+            echo '❌   Pipeline failed. Check logs and reports.'
         }
     }
 }
