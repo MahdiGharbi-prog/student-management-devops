@@ -204,7 +204,7 @@ pipeline {
 
         success {
             emailext(
-                to: 'yourgmail@gmail.com',
+                to: '3amarbouzwer1231@gmail.com',
                 subject: "SUCCESS ✅ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 mimeType: 'text/html',
                 body: """
@@ -222,7 +222,7 @@ pipeline {
 
         failure {
             emailext(
-                to: 'yourgmail@gmail.com',
+                to: '3amarbouzwer1231@gmail.com',
                 subject: "FAILURE ❌ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 mimeType: 'text/html',
                 body: """
