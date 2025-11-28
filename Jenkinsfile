@@ -96,18 +96,18 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     sh '''
-                       mkdir -p /var/lib/trivy
-trivy image \
-    --cache-dir /var/lib/trivy \
-    --security-checks vuln \
-    --severity HIGH,CRITICAL \
-    --light \
-    --ignore-unfixed \
-    --no-progress \
-    --timeout 90s \
-    --format table \
-    --output trivy-report.html \
-    $REGISTRY/$IMAGE:latest || true
+                      mkdir -p $WORKSPACE/trivy-cache
+trivy image --cache-dir $WORKSPACE/trivy-cache \
+            --security-checks vuln \
+            --severity HIGH,CRITICAL \
+            --light \
+            --ignore-unfixed \
+            --no-progress \
+            --timeout 90s \
+            --format table \
+            --output trivy-report.html \
+            $REGISTRY/$IMAGE:latest || true
+
                     '''
                 }
             }
