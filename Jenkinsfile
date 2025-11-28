@@ -41,8 +41,6 @@ pipeline {
             }
         }
 
-        
-
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
             steps {
@@ -74,7 +72,7 @@ pipeline {
                             echo "📊 Running SonarQube static code analysis..."
                             mvn sonar:sonar \
                                 -Dsonar.projectKey=studentmang-app \
-                                -Dsonar.host.url=${SONAR_HOST_URL} \
+                                -Dsonar.host.url=''' + "${SONAR_HOST_URL}" + ''' \
                                 -Dsonar.login=$SONARQUBE || true
                         '''
                     }
@@ -84,42 +82,37 @@ pipeline {
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
-    steps {
-        dir('student-man-main') {
-            script {
-                // Get the current Git commit hash
-                GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                
-                // Build Docker image with both 'latest' and commit tag
-                sh """
-                    echo "🐳 Building Docker image..."
-                    docker build -t $REGISTRY/$IMAGE:latest -t $REGISTRY/$IMAGE:$GIT_COMMIT .
-                    
-                    echo "✅ Image built successfully:"
-                    docker images | grep $IMAGE
-                """
+            steps {
+                dir('student-man-main') {
+                    script {
+                        GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+
+                        sh """
+                            echo "🐳 Building Docker image..."
+                            docker build -t $REGISTRY/$IMAGE:latest -t $REGISTRY/$IMAGE:$GIT_COMMIT .
+                        """
+                    }
+                }
             }
         }
-    }
-}
 
         /* ------------------------- TRIVY --------------------------- */
         stage('Trivy Scan (Container Security)') {
             steps {
                 dir('student-man-main') {
                     sh '''
-                      mkdir -p $WORKSPACE/trivy-cache
-trivy image --cache-dir $WORKSPACE/trivy-cache \
-            --security-checks vuln \
-            --severity HIGH,CRITICAL \
-            --light \
-            --ignore-unfixed \
-            --no-progress \
-            --timeout 90s \
-            --format table \
-            --output trivy-report.html \
-            $REGISTRY/$IMAGE:latest || true
-
+                        mkdir -p $WORKSPACE/trivy-cache
+                        trivy image \
+                            --cache-dir $WORKSPACE/trivy-cache \
+                            --security-checks vuln \
+                            --severity HIGH,CRITICAL \
+                            --light \
+                            --ignore-unfixed \
+                            --no-progress \
+                            --timeout 90s \
+                            --format html \
+                            --output trivy-report.html \
+                            $REGISTRY/$IMAGE:latest || true
                     '''
                 }
             }
@@ -135,11 +128,11 @@ trivy image --cache-dir $WORKSPACE/trivy-cache \
             steps {
                 dir('student-man-main') {
                     sh '''
-                        echo "💥 Running Nikto web vulnerability scan on $APP_DAST_URL..."
+                        echo "💥 Running Nikto DAST scan..."
                         nikto -h $APP_DAST_URL \
-                              -maxtime 60 \
                               -Format html \
-                              -o nikto-report.html || true
+                              -o nikto-report.html \
+                              -maxtime 60 || true
                     '''
                 }
             }
@@ -151,30 +144,29 @@ trivy image --cache-dir $WORKSPACE/trivy-cache \
         }
 
         /* ------------------------ DOCKER HUB ----------------------- */
-       stage('Push to Docker Hub') {
-    steps {
-        dir('student-man-main') {
-            withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                script {
-                    sh """
-                        echo "📦 Logging in to Docker Hub..."
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+        stage('Push to Docker Hub') {
+            steps {
+                dir('student-man-main') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        script {
+                            sh '''
+                                echo "📦 Logging in to Docker Hub..."
+                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-                        echo "🚀 Pushing image with 'latest' tag..."
-                        docker push $REGISTRY/$IMAGE:latest
+                                echo "🚀 Pushing image with 'latest' tag..."
+                                docker push ''' + "${REGISTRY}/${IMAGE}:latest" + '''
 
-                        echo "🚀 Pushing image with commit tag..."
-                        docker push $REGISTRY/$IMAGE:$GIT_COMMIT
+                                echo "🚀 Pushing image with commit tag..."
+                                docker push ''' + "${REGISTRY}/${IMAGE}:$GIT_COMMIT" + '''
 
-                        echo "🔒 Logging out from Docker Hub..."
-                        docker logout
-                    """
+                                echo "🔒 Logging out..."
+                                docker logout
+                            '''
+                        }
+                    }
                 }
             }
         }
-    }
-}
-        
 
         /* -------------------------- SUMMARY ------------------------ */
         stage('Generate Summary Report') {
@@ -187,7 +179,7 @@ trivy image --cache-dir $WORKSPACE/trivy-cache \
                     <body>
                         <h2>📘 DevSecOps Pipeline Summary</h2>
                         <ul>
-                            <li><a href='target/dependency-check-report.html'>OWASP Dependency Check (SCA)</a></li>
+                            <li><a href='target/dependency-check-report.html'>OWASP Dependency Check</a></li>
                             <li><a href='trivy-report.html'>Trivy Image Scan</a></li>
                             <li><a href='nikto-report.html'>Nikto DAST Scan</a></li>
                             <li><a href='${GITLEAKS_REPORT}'>Gitleaks Secrets Scan</a></li>
@@ -208,7 +200,7 @@ trivy image --cache-dir $WORKSPACE/trivy-cache \
             echo '🎯 Pipeline finished. Reports generated successfully.'
         }
         failure {
-            echo '❌   Pipeline failed. Check logs and reports.'
+            echo '❌ Pipeline failed. Check logs and reports.'
         }
     }
 }
