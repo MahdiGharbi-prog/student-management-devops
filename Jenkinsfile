@@ -84,12 +84,24 @@ pipeline {
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
-            steps {
-                dir('student-man-main') {
-                    sh 'docker build -t $REGISTRY/$IMAGE:latest .'
-                }
+    steps {
+        dir('student-man-main') {
+            script {
+                // Get the current Git commit hash
+                GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                
+                // Build Docker image with both 'latest' and commit tag
+                sh """
+                    echo "🐳 Building Docker image..."
+                    docker build -t $REGISTRY/$IMAGE:latest -t $REGISTRY/$IMAGE:$GIT_COMMIT .
+                    
+                    echo "✅ Image built successfully:"
+                    docker images | grep $IMAGE
+                """
             }
         }
+    }
+}
 
         /* ------------------------- TRIVY --------------------------- */
         stage('Trivy Scan (Container Security)') {
@@ -139,20 +151,29 @@ trivy image --cache-dir $WORKSPACE/trivy-cache \
         }
 
         /* ------------------------ DOCKER HUB ----------------------- */
-        stage('Push to Docker Hub') {
-            steps {
-                dir('student-man-main') {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                            echo "📦 Pushing image to Docker Hub..."
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            docker push $REGISTRY/$IMAGE:latest || true
-                            docker logout
-                        '''
-                    }
+       stage('Push to Docker Hub') {
+    steps {
+        dir('student-man-main') {
+            withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                script {
+                    sh """
+                        echo "📦 Logging in to Docker Hub..."
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        echo "🚀 Pushing image with 'latest' tag..."
+                        docker push $REGISTRY/$IMAGE:latest
+
+                        echo "🚀 Pushing image with commit tag..."
+                        docker push $REGISTRY/$IMAGE:$GIT_COMMIT
+
+                        echo "🔒 Logging out from Docker Hub..."
+                        docker logout
+                    """
                 }
             }
         }
+    }
+}
         
 
         /* -------------------------- SUMMARY ------------------------ */
