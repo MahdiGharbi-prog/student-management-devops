@@ -203,4 +203,53 @@ pipeline {
             echo '❌ Pipeline failed. Check logs and reports.'
         }
     }
+
+    post {
+    always {
+        echo '🎯 Pipeline finished. Reports generated successfully.'
+    }
+
+    success {
+        emailext(
+            to: 'mahdigharbi99@outlook.fr',
+            subject: "SUCCESS ✅ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: """
+Hello,
+
+Your Jenkins pipeline has completed **SUCCESSFULLY**.
+
+🔹 Project: ${env.JOB_NAME}  
+🔹 Build: #${env.BUILD_NUMBER}  
+🔹 Status: SUCCESS  
+🔹 Build URL: ${env.BUILD_URL}
+
+Regards,  
+Jenkins CI/CD
+"""
+        )
+    }
+
+    failure {
+        emailext(
+            to: 'mahdigharbi99@outlook.fr',
+            subject: "FAILURE ❌ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: """
+Hello,
+
+Your Jenkins pipeline has **FAILED**.
+
+🔹 Project: ${env.JOB_NAME}  
+🔹 Build: #${env.BUILD_NUMBER}  
+🔹 Status: FAILED  
+🔹 Build URL: ${env.BUILD_URL}
+
+Check logs and reports for more information.
+
+Regards,  
+Jenkins CI/CD
+"""
+        )
+    }
+}
+
 }
