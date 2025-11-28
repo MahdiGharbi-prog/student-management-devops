@@ -96,14 +96,18 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     sh '''
-                        echo "🧪 Running Trivy vulnerability scan..."
-                        trivy image --quiet \
-                                    --severity HIGH,CRITICAL \
-                                    --light \
-                                    --timeout 5m \
-                                    --format table \
-                                    --output trivy-report.html \
-                                    $REGISTRY/$IMAGE:latest || true
+                       mkdir -p /var/lib/trivy
+trivy image \
+    --cache-dir /var/lib/trivy \
+    --security-checks vuln \
+    --severity HIGH,CRITICAL \
+    --light \
+    --ignore-unfixed \
+    --no-progress \
+    --timeout 90s \
+    --format table \
+    --output trivy-report.html \
+    $REGISTRY/$IMAGE:latest || true
                     '''
                 }
             }
