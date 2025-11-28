@@ -8,6 +8,7 @@ class StudentManagementApplicationTests {
 
     @Test
     void contextLoads() {
+        api key="REDACTED"
     }
 
 }
