@@ -68,13 +68,13 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     withSonarQubeEnv('SonarQube') {
-                        sh '''
+                        sh """
                             echo "📊 Running SonarQube static code analysis..."
                             mvn sonar:sonar \
                                 -Dsonar.projectKey=studentmang-app \
-                                -Dsonar.host.url=''' + "${SONAR_HOST_URL}" + ''' \
+                                -Dsonar.host.url=$SONAR_HOST_URL \
                                 -Dsonar.login=$SONARQUBE || true
-                        '''
+                        """
                     }
                 }
             }
@@ -149,19 +149,19 @@ pipeline {
                 dir('student-man-main') {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         script {
-                            sh '''
+                            sh """
                                 echo "📦 Logging in to Docker Hub..."
-                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                                echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
 
                                 echo "🚀 Pushing image with 'latest' tag..."
-                                docker push ''' + "${REGISTRY}/${IMAGE}:latest" + '''
+                                docker push $REGISTRY/$IMAGE:latest
 
                                 echo "🚀 Pushing image with commit tag..."
-                                docker push ''' + "${REGISTRY}/${IMAGE}:$GIT_COMMIT" + '''
+                                docker push $REGISTRY/$IMAGE:$GIT_COMMIT
 
                                 echo "🔒 Logging out..."
                                 docker logout
-                            '''
+                            """
                         }
                     }
                 }
@@ -204,43 +204,38 @@ pipeline {
 
         success {
             emailext(
-                to: 'mahdigharbi99@outlook.fr',
+                to: 'yourgmail@gmail.com',
                 subject: "SUCCESS ✅ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
                 body: """
-Hello,
-
-Your Jenkins pipeline has completed **SUCCESSFULLY**.
-
-🔹 Project: ${env.JOB_NAME}
-🔹 Build: #${env.BUILD_NUMBER}
-🔹 Status: SUCCESS
-🔹 Build URL: ${env.BUILD_URL}
-
-Regards,  
-Jenkins CI/CD
-"""
+                <h3>🎉 Build Successful!</h3>
+                <p>Your Jenkins pipeline completed successfully.</p>
+                <ul>
+                    <li><b>Project:</b> ${env.JOB_NAME}</li>
+                    <li><b>Build:</b> #${env.BUILD_NUMBER}</li>
+                    <li><b>Status:</b> SUCCESS</li>
+                    <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                </ul>
+                """
             )
         }
 
         failure {
             emailext(
-                to: 'mahdigharbi99@outlook.fr',
+                to: 'yourgmail@gmail.com',
                 subject: "FAILURE ❌ - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
                 body: """
-Hello,
-
-Your Jenkins pipeline has **FAILED**.
-
-🔹 Project: ${env.JOB_NAME}
-🔹 Build: #${env.BUILD_NUMBER}
-🔹 Status: FAILED
-🔹 Build URL: ${env.BUILD_URL}
-
-Check logs and reports for more information.
-
-Regards,  
-Jenkins CI/CD
-"""
+                <h3>❌ Build Failed</h3>
+                <p>Your Jenkins pipeline failed.</p>
+                <ul>
+                    <li><b>Project:</b> ${env.JOB_NAME}</li>
+                    <li><b>Build:</b> #${env.BUILD_NUMBER}</li>
+                    <li><b>Status:</b> FAILED</li>
+                    <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                </ul>
+                <p>Please check logs and reports.</p>
+                """
             )
         }
     }
