@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = "farzzit"
+        REGISTRY = "gharbimahdi"
         IMAGE = "studentmang-app"
 
         // Correct URLs
@@ -15,7 +15,7 @@ pipeline {
     stages {
         stage('Clone Repository & Secrets Scan (Gitleaks)') {
             steps {
-                git branch: 'master', url: 'https://github.com/medaminehammami/student-management-devops.git'
+                git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
                 dir('student-man-main') {
                     sh '''
                     echo "🔒 Running Gitleaks Secrets Scan..."
