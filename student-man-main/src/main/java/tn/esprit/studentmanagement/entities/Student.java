@@ -22,6 +22,7 @@ public class Student {
     private String phone;
     private LocalDate dateOfBirth;
     private String address;
+    private String teacherName;  // 'TESTS'
 
     @ManyToOne
     private Department department;
