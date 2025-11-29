@@ -19,6 +19,7 @@ public class Course {
     private String code;           // exemple : CS101
     private int credit;            // nombre de crédits
     private String description;
+    private String teacher;       //For testing purposes
 
     @OneToMany(mappedBy = "course")
     private List<Enrollment> enrollments;
