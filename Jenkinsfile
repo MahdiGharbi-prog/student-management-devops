@@ -43,22 +43,24 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
 
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
-            steps {
-                dir('student-man-main') {
-                    sh '''
-                        echo "🔍 Running OWASP Dependency-Check..."
-                        mvn org.owasp:dependency-check-maven:check \
-                            -Dformat=HTML \
-                            -DskipAssembly=true || true
-                    '''
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
-                }
-            }
+    steps {
+        dir('student-man-main') {
+            sh '''
+                echo "🔍 Running OWASP Dependency-Check..."
+                mvn org.owasp:dependency-check-maven:check \
+                    -Dformat=HTML \
+                    -DskipAssembly=true \
+                    -DfailBuildOnCVSS=7
+            '''
         }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
+        }
+    }
+}
+
 
         /* -------------------------- SONAR -------------------------- */
         stage('SonarQube (SAST)') {
