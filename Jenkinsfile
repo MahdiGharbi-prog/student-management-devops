@@ -35,7 +35,7 @@ pipeline {
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
             steps {
-                dir('student-management-devops/student-man-main/student-management') {
+                dir('student-management-devops/student-man-main') {
                     sh 'mvn clean package -DskipTests'
                 }
             }
@@ -44,7 +44,7 @@ pipeline {
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
             steps {
-                dir('student-management-devops/student-man-main/student-management') {
+                dir('student-management-devops/student-man-main') {
                     sh '''
                         echo "🔍 Running OWASP Dependency-Check..."
                         mvn org.owasp:dependency-check-maven:check \
@@ -56,7 +56,7 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'student-management-devops/student-man-main/student-management/target/dependency-check-report.html', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'student-management-devops/student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
                 }
             }
         }
@@ -64,7 +64,7 @@ pipeline {
         /* -------------------------- SONAR -------------------------- */
         stage('SonarQube (SAST)') {
             steps {
-                dir('student-management-devops/student-man-main/student-management') {
+                dir('student-management-devops/student-man-main') {
                     withSonarQubeEnv('SonarQube') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             sh '''
@@ -173,7 +173,7 @@ pipeline {
                     <body>
                         <h2>📘 DevSecOps Pipeline Summary</h2>
                         <ul>
-                            <li><a href='student-man-main/student-management/target/dependency-check-report.html'>OWASP Dependency Check</a></li>
+                            <li><a href='student-man-main/target/dependency-check-report.html'>OWASP Dependency Check</a></li>
                             <li><a href='../trivy-report.json'>Trivy Image Scan</a></li>
                             <li><a href='nikto-report.html'>Nikto DAST Scan</a></li>
                             <li><a href='${GITLEAKS_REPORT}'>Gitleaks Secrets Scan</a></li>
