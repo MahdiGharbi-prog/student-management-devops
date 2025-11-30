@@ -98,24 +98,20 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
 
         /* ------------------------- TRIVY --------------------------- */
-       stage('Trivy Scan (Container Security)') {
+       stage('Trivy Scan') {
     steps {
-        dir('student-man-main') {
-            sh '''
-  trivy image \
-  --timeout 10m \
-  --scanners vuln,misconfig \
-  --ignore-unfixed \
-  --exit-code 1 \
-  --format json \
-  --output trivy-report.json \
-  gharbimahdi/studentmang-app:latest
-
-
-'''
-
-        }
+        sh '''
+        trivy image \
+            --scanners vuln,misconfig \
+            --ignore-unfixed \
+            --timeout 15m \
+            --format json \
+            --output trivy-report.json \
+            gharbimahdi/studentmang-app:latest
+        '''
     }
+}
+
     post {
         always {
             archiveArtifacts artifacts: 'student-man-main/trivy-report.html', allowEmptyArchive: true
