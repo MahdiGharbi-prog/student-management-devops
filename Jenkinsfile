@@ -112,7 +112,9 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
                     --severity HIGH,CRITICAL \
                     --ignore-unfixed \
                     --no-progress \
-                    --timeout 10m \
+                    --timeout 15m \
+                    --db-repository public.ecr.aws/aquasecurity/trivy-db \
+                    --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db \
                     --format template \
                     --template "@/usr/local/share/trivy/templates/html.tpl" \
                     --output trivy-report.html \
@@ -126,6 +128,7 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
     }
 }
+
 
 
 
