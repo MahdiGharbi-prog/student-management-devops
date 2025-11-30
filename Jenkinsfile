@@ -14,28 +14,27 @@ pipeline {
     stages {
 
         /* ------------------------ GITLEAKS ------------------------ */
-       stage('Clone Repository & Secrets Scan (Gitleaks)') {
-    steps {
-        git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
+        stage('Clone Repository & Secrets Scan (Gitleaks)') {
+            steps {
+                git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
 
-        dir('student-man-main') {
-            sh '''
-                echo "🔒 Running Gitleaks Secrets Scan..."
-                gitleaks detect \
-                    -f json \
-                    --report-path $GITLEAKS_REPORT \
-                    --exit-code 1 \
-                    --source .
-            '''
+                dir('student-man-main') {
+                    sh '''
+                        echo "🔒 Running Gitleaks Secrets Scan..."
+                        gitleaks detect \
+                            -f json \
+                            --report-path $GITLEAKS_REPORT \
+                            --exit-code 1 \
+                            --source .
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
+                }
+            }
         }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
-        }
-    }
-}
-
 
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
@@ -48,44 +47,42 @@ pipeline {
 
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
-    steps {
-        dir('student-man-main') {
-            sh '''
-                echo "🔍 Running OWASP Dependency-Check..."
-                mvn -B org.owasp:dependency-check-maven:check \
-                    -Dformat=HTML \
-                    -DskipAssembly=true \
-                    -DfailBuildOnCVSS=7
-            '''
-        }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
-        }
-    }
-}
-
-
-        /* -------------------------- SONAR -------------------------- */
-        stage('SonarQube Analysis') {
-    steps {
-        dir('student-man-main') {
-            withSonarQubeEnv('SonarQube') {
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+            steps {
+                dir('student-man-main') {
                     sh '''
-                        echo "📊 Running SonarQube static code analysis..."
-                        mvn -B sonar:sonar \
-                            -Dsonar.projectKey=studentmang-app \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
-                            -Dsonar.token=$SONAR_TOKEN
+                        echo "🔍 Running OWASP Dependency-Check..."
+                        mvn -B org.owasp:dependency-check-maven:check \
+                            -Dformat=HTML \
+                            -DskipAssembly=true \
+                            -DfailBuildOnCVSS=7
                     '''
                 }
             }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
+                }
+            }
         }
-    }
-}
 
+        /* -------------------------- SONAR -------------------------- */
+        stage('SonarQube Analysis') {
+            steps {
+                dir('student-man-main') {
+                    withSonarQubeEnv('SonarQube') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh '''
+                                echo "📊 Running SonarQube static code analysis..."
+                                mvn -B sonar:sonar \
+                                    -Dsonar.projectKey=studentmang-app \
+                                    -Dsonar.host.url=$SONAR_HOST_URL \
+                                    -Dsonar.token=$SONAR_TOKEN
+                            '''
+                        }
+                    }
+                }
+            }
+        }
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
@@ -108,18 +105,24 @@ pipeline {
             steps {
                 dir('student-man-main') {
                     sh '''
-                        mkdir -p $WORKSPACE/trivy-cache
+                        echo "🔍 Running FAST Trivy container scan..."
+                        
+                        # Use system Trivy cache (much faster than downloading each time)
                         trivy image \
-                            --cache-dir $WORKSPACE/trivy-cache \
+                            --cache-dir /tmp/trivy-cache \
                             --security-checks vuln \
                             --severity HIGH,CRITICAL \
-                            --light \
                             --ignore-unfixed \
                             --no-progress \
-                            --timeout 90s \
                             --format html \
                             --output trivy-report.html \
-                            $REGISTRY/$IMAGE:latest || true
+                            --exit-code 1 \
+                            --timeout 300s \
+                            --skip-db-update \
+                            --skip-java-db-update \
+                            $REGISTRY/$IMAGE:latest
+                        
+                        echo "✅ Trivy scan completed in under 5 minutes"
                     '''
                 }
             }
@@ -152,6 +155,9 @@ pipeline {
 
         /* ------------------------ DOCKER HUB ----------------------- */
         stage('Push to Docker Hub') {
+            when {
+                expression { currentBuild.result != 'FAILURE' }
+            }
             steps {
                 dir('student-man-main') {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -177,6 +183,9 @@ pipeline {
 
         /* -------------------------- SUMMARY ------------------------ */
         stage('Generate Summary Report') {
+            when {
+                expression { currentBuild.result != 'FAILURE' }
+            }
             steps {
                 script {
                     def now = sh(script: "date", returnStdout: true).trim()
