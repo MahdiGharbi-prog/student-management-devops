@@ -35,7 +35,7 @@ pipeline {
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
             steps {
-                dir('student-man-main') {
+                dir('C:\Users\mahdi\student-management-devops\student-man-main\student-management\pom.xml') {
                     sh 'mvn clean package -DskipTests'
                 }
             }
