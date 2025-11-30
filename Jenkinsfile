@@ -102,21 +102,17 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
     steps {
         dir('student-man-main') {
             sh '''
-                echo "🔍 Running Trivy vulnerability scan..."
+    trivy image \
+        --skip-update \
+        --cache-dir /tmp/trivy-cache \
+        --security-checks vuln,misconfig \
+        --ignore-unfixed \
+        --exit-code 1 \
+        --format json \
+        --output trivy-report.json \
+        ${REGISTRY}/${IMAGE}:latest
+'''
 
-                trivy image \
-                    --cache-dir $WORKSPACE/trivy-cache \
-                    --scanners vuln \
-                    --skip-java-db \
-                    --severity HIGH,CRITICAL \
-                    --ignore-unfixed \
-                    --no-progress \
-                    --timeout 5m \
-                    --format template \
-                    --template "@/usr/local/share/trivy/templates/html.tpl" \
-                    --output trivy-report.html \
-                    $REGISTRY/$IMAGE:latest
-            '''
         }
     }
     post {
