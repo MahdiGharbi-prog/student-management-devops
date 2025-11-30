@@ -14,28 +14,28 @@ pipeline {
     stages {
 
         /* ------------------------ GITLEAKS ------------------------ */
-        stage('Clone Repository & Secrets Scan (Gitleaks)') {
-            steps {
-                git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
+stage('Clone Repository & Secrets Scan (Gitleaks)') {
+    steps {
+        git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
 
-                dir('student-management-devops') {
-                    sh '''
-                        echo "🔒 Running Gitleaks Secrets Scan..."
-                        gitleaks detect -f json --report-path $GITLEAKS_REPORT --source .
-                    '''
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: "student-management-devops/${GITLEAKS_REPORT}", allowEmptyArchive: true
-                }
-            }
+        dir('student-man-main') {
+            sh '''
+                echo "🔒 Running Gitleaks Secrets Scan..."
+                gitleaks detect -f json --report-path $GITLEAKS_REPORT --source .
+            '''
         }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
+        }
+    }
+}
 
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
             steps {
-                dir('student-management-devops/student-man-main') {
+                dir('student-man-main') {
                     sh 'mvn clean package -DskipTests'
                 }
             }
@@ -43,49 +43,50 @@ pipeline {
 
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
-            steps {
-                dir('student-management-devops/student-man-main') {
+    steps {
+        dir('student-man-main') {
+            sh '''
+                echo "🔍 Running OWASP Dependency-Check..."
+                mvn org.owasp:dependency-check-maven:check \
+                    -Dformat=HTML \
+                    -DskipAssembly=true \
+                    -DfailBuildOnCVSS=7
+            '''
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
+        }
+    }
+}
+
+
+        /* -------------------------- SONAR -------------------------- */
+
+    steps {
+        dir('student-man-main') {
+            withSonarQubeEnv('SonarQube') {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
-                        echo "🔍 Running OWASP Dependency-Check..."
-                        mvn org.owasp:dependency-check-maven:check \
-                            -Dformat=HTML \
-                            -DskipAssembly=true \
-                            -DfailBuildOnCVSS=7
+                        echo "📊 Running SonarQube static code analysis..."
+                        mvn sonar:sonar \
+                            -Dsonar.projectKey=studentmang-app \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.token=$SONAR_TOKEN
                     '''
                 }
             }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'student-management-devops/student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
-                }
-            }
         }
-
-        /* -------------------------- SONAR -------------------------- */
-        stage('SonarQube (SAST)') {
-            steps {
-                dir('student-management-devops/student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                            sh '''
-                                echo "📊 Running SonarQube static code analysis..."
-                                mvn sonar:sonar \
-                                    -Dsonar.projectKey=studentmang-app \
-                                    -Dsonar.host.url=$SONAR_HOST_URL \
-                                    -Dsonar.token=$SONAR_TOKEN
-                            '''
-                        }
-                    }
-                }
-            }
-        }
+    }
+}
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
             steps {
-                dir('student-management-devops') {
+                dir('student-man-main') {
                     script {
-                        env.GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                        GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
 
                         sh """
                             echo "🐳 Building Docker image..."
@@ -97,22 +98,28 @@ pipeline {
         }
 
         /* ------------------------- TRIVY --------------------------- */
-        stage('Trivy Scan') {
+        stage('Trivy Scan (Container Security)') {
             steps {
-                sh '''
-                    echo "🔍 Running Trivy image scan..."
-                    trivy image \
-                        --scanners vuln,misconfig \
-                        --ignore-unfixed \
-                        --timeout 15m \
-                        --format json \
-                        --output trivy-report.json \
-                        gharbimahdi/studentmang-app:latest
-                '''
+                dir('student-man-main') {
+                    sh '''
+                        mkdir -p $WORKSPACE/trivy-cache
+                        trivy image \
+                            --cache-dir $WORKSPACE/trivy-cache \
+                            --security-checks vuln \
+                            --severity HIGH,CRITICAL \
+                            --light \
+                            --ignore-unfixed \
+                            --no-progress \
+                            --timeout 90s \
+                            --format html \
+                            --output trivy-report.html \
+                            $REGISTRY/$IMAGE:latest || true
+                    '''
+                }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'student-man-main/trivy-report.html', allowEmptyArchive: true
                 }
             }
         }
@@ -120,7 +127,7 @@ pipeline {
         /* -------------------------- NIKTO -------------------------- */
         stage('Nikto Scan (DAST)') {
             steps {
-                dir('student-management-devops') {
+                dir('student-man-main') {
                     sh '''
                         echo "💥 Running Nikto DAST scan..."
                         nikto -h $APP_DAST_URL \
@@ -132,7 +139,7 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'student-management-devops/nikto-report.html', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'student-man-main/nikto-report.html', allowEmptyArchive: true
                 }
             }
         }
@@ -140,7 +147,7 @@ pipeline {
         /* ------------------------ DOCKER HUB ----------------------- */
         stage('Push to Docker Hub') {
             steps {
-                dir('student-management-devops') {
+                dir('student-man-main') {
                     withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         script {
                             sh """
@@ -168,13 +175,13 @@ pipeline {
                 script {
                     def now = sh(script: "date", returnStdout: true).trim()
 
-                    writeFile file: 'student-management-devops/summary-report.html', text: """
+                    writeFile file: 'student-man-main/summary-report.html', text: """
                     <html><head><title>DevSecOps Security Report</title></head>
                     <body>
                         <h2>📘 DevSecOps Pipeline Summary</h2>
                         <ul>
-                            <li><a href='student-man-main/target/dependency-check-report.html'>OWASP Dependency Check</a></li>
-                            <li><a href='../trivy-report.json'>Trivy Image Scan</a></li>
+                            <li><a href='target/dependency-check-report.html'>OWASP Dependency Check</a></li>
+                            <li><a href='trivy-report.html'>Trivy Image Scan</a></li>
                             <li><a href='nikto-report.html'>Nikto DAST Scan</a></li>
                             <li><a href='${GITLEAKS_REPORT}'>Gitleaks Secrets Scan</a></li>
                             <li><a href='${SONAR_HOST_URL}/dashboard?id=studentmang-app'>SonarQube Dashboard</a></li>
@@ -184,13 +191,14 @@ pipeline {
                     """
                 }
 
-                archiveArtifacts artifacts: 'student-management-devops/summary-report.html', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'student-man-main/summary-report.html', allowEmptyArchive: true
             }
         }
     }
 
     /* -------------------------- GLOBAL POST ---------------------- */
     post {
+
         always {
             echo '🎯 Pipeline finished. Reports generated successfully.'
         }
