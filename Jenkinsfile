@@ -104,17 +104,14 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
             sh '''
                 echo "🔍 Running Trivy vulnerability scan..."
 
-                mkdir -p $WORKSPACE/trivy-cache
-
                 trivy image \
                     --cache-dir $WORKSPACE/trivy-cache \
                     --scanners vuln \
+                    --skip-java-db \
                     --severity HIGH,CRITICAL \
                     --ignore-unfixed \
                     --no-progress \
-                    --timeout 15m \
-                    --db-repository public.ecr.aws/aquasecurity/trivy-db \
-                    --java-db-repository public.ecr.aws/aquasecurity/trivy-java-db \
+                    --timeout 5m \
                     --format template \
                     --template "@/usr/local/share/trivy/templates/html.tpl" \
                     --output trivy-report.html \
@@ -128,6 +125,7 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
     }
 }
+
 
 
 
