@@ -101,6 +101,7 @@ pipeline {
         }
 
         /* ------------------------- TRIVY --------------------------- */
+                /* ------------------------- TRIVY --------------------------- */
         stage('Trivy Scan (Container Security)') {
             steps {
                 dir('student-man-main') {
@@ -110,11 +111,12 @@ pipeline {
                         # Use system Trivy cache (much faster than downloading each time)
                         trivy image \
                             --cache-dir /tmp/trivy-cache \
-                            --security-checks vuln \
+                            --scanners vuln \
                             --severity HIGH,CRITICAL \
                             --ignore-unfixed \
                             --no-progress \
-                            --format html \
+                            --format template \
+                            --template "@/usr/local/share/trivy/templates/html.tpl" \
                             --output trivy-report.html \
                             --exit-code 1 \
                             --timeout 300s \
@@ -122,7 +124,7 @@ pipeline {
                             --skip-java-db-update \
                             $REGISTRY/$IMAGE:latest
                         
-                        echo "✅ Trivy scan completed in under 5 minutes"
+                        echo "✅ Trivy scan completed successfully"
                     '''
                 }
             }
