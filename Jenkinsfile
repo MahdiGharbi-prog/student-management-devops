@@ -14,23 +14,23 @@ pipeline {
     stages {
 
         /* ------------------------ GITLEAKS ------------------------ */
-stage('Clone Repository & Secrets Scan (Gitleaks)') {
-    steps {
-        git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
+        stage('Clone Repository & Secrets Scan (Gitleaks)') {
+            steps {
+                git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
 
-        dir('student-man-main') {
-            sh '''
-                echo "🔒 Running Gitleaks Secrets Scan..."
-                gitleaks detect -f json --report-path $GITLEAKS_REPORT --source .
-            '''
+                dir('student-man-main') {
+                    sh '''
+                        echo "🔒 Running Gitleaks Secrets Scan..."
+                        gitleaks detect -f json --report-path $GITLEAKS_REPORT --source .
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
+                }
+            }
         }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
-        }
-    }
-}
 
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
@@ -43,43 +43,42 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
 
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
-    steps {
-        dir('student-man-main') {
-            sh '''
-                echo "🔍 Running OWASP Dependency-Check..."
-                mvn org.owasp:dependency-check-maven:check \
-                    -Dformat=HTML \
-                    -DskipAssembly=true \
-                    -DfailBuildOnCVSS=7
-            '''
-        }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
-        }
-    }
-}
-
-
-        /* -------------------------- SONAR -------------------------- */
-
-    steps {
-        dir('student-man-main') {
-            withSonarQubeEnv('SonarQube') {
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+            steps {
+                dir('student-man-main') {
                     sh '''
-                        echo "📊 Running SonarQube static code analysis..."
-                        mvn sonar:sonar \
-                            -Dsonar.projectKey=studentmang-app \
-                            -Dsonar.host.url=$SONAR_HOST_URL \
-                            -Dsonar.token=$SONAR_TOKEN
+                        echo "🔍 Running OWASP Dependency-Check..."
+                        mvn org.owasp:dependency-check-maven:check \
+                            -Dformat=HTML \
+                            -DskipAssembly=true \
+                            -DfailBuildOnCVSS=7
                     '''
                 }
             }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'student-man-main/target/dependency-check-report.html', allowEmptyArchive: true
+                }
+            }
         }
-    }
-}
+
+        /* -------------------------- SONAR -------------------------- */
+        stage('SonarQube Analysis') {
+            steps {
+                dir('student-man-main') {
+                    withSonarQubeEnv('SonarQube') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh '''
+                                echo "📊 Running SonarQube static code analysis..."
+                                mvn sonar:sonar \
+                                    -Dsonar.projectKey=studentmang-app \
+                                    -Dsonar.host.url=$SONAR_HOST_URL \
+                                    -Dsonar.token=$SONAR_TOKEN
+                            '''
+                        }
+                    }
+                }
+            }
+        }
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
