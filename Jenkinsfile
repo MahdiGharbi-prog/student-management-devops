@@ -99,30 +99,34 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
 
         /* ------------------------- TRIVY --------------------------- */
         stage('Trivy Scan (Container Security)') {
-            steps {
-                dir('student-man-main') {
-                    sh '''
-                        mkdir -p $WORKSPACE/trivy-cache
-                        trivy image \
-                            --cache-dir $WORKSPACE/trivy-cache \
-                            --security-checks vuln \
-                            --severity HIGH,CRITICAL \
-                            --light \
-                            --ignore-unfixed \
-                            --no-progress \
-                            --timeout 90s \
-                            --format html \
-                            --output trivy-report.html \
-                            $REGISTRY/$IMAGE:latest || true
-                    '''
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'student-man-main/trivy-report.html', allowEmptyArchive: true
-                }
-            }
+    steps {
+        dir('student-man-main') {
+            sh '''
+                echo "🔍 Running Trivy vulnerability scan..."
+
+                mkdir -p $WORKSPACE/trivy-cache
+
+                trivy image \
+                    --cache-dir $WORKSPACE/trivy-cache \
+                    --scanners vuln \
+                    --severity HIGH,CRITICAL \
+                    --ignore-unfixed \
+                    --no-progress \
+                    --timeout 90s \
+                    --format template \
+                    --template "@/usr/local/share/trivy/templates/html.tpl" \
+                    --output trivy-report.html \
+                    $REGISTRY/$IMAGE:latest
+            '''
         }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'student-man-main/trivy-report.html', allowEmptyArchive: true
+        }
+    }
+}
+
 
         /* -------------------------- NIKTO -------------------------- */
         stage('Nikto Scan (DAST)') {
