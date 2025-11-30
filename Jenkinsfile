@@ -100,29 +100,45 @@ pipeline {
             }
         }
 
-        /* ------------------------- TRIVY --------------------------- */
-                /* ------------------------- TRIVY --------------------------- */
+               /* ------------------------- TRIVY --------------------------- */
         stage('Trivy Scan (Container Security)') {
             steps {
                 dir('student-man-main') {
                     sh '''
                         echo "🔍 Running FAST Trivy container scan..."
                         
-                        # Use system Trivy cache (much faster than downloading each time)
-                        trivy image \
-                            --cache-dir /tmp/trivy-cache \
-                            --scanners vuln \
-                            --severity HIGH,CRITICAL \
-                            --ignore-unfixed \
-                            --no-progress \
-                            --format template \
-                            --template "@/usr/local/share/trivy/templates/html.tpl" \
-                            --output trivy-report.html \
-                            --exit-code 1 \
-                            --timeout 300s \
-                            --skip-db-update \
-                            --skip-java-db-update \
-                            $REGISTRY/$IMAGE:latest
+                        # Check if Trivy DB exists
+                        if [ -d "/tmp/trivy-cache/db" ] && [ -n "$(ls -A /tmp/trivy-cache/db 2>/dev/null)" ]; then
+                            echo "📁 Using cached Trivy database..."
+                            trivy image \
+                                --cache-dir /tmp/trivy-cache \
+                                --scanners vuln \
+                                --severity HIGH,CRITICAL \
+                                --ignore-unfixed \
+                                --no-progress \
+                                --format template \
+                                --template "@/usr/local/share/trivy/templates/html.tpl" \
+                                --output trivy-report.html \
+                                --exit-code 1 \
+                                --timeout 300s \
+                                --skip-db-update \
+                                --skip-java-db-update \
+                                $REGISTRY/$IMAGE:latest
+                        else
+                            echo "📥 First run - downloading Trivy database..."
+                            trivy image \
+                                --cache-dir /tmp/trivy-cache \
+                                --scanners vuln \
+                                --severity HIGH,CRITICAL \
+                                --ignore-unfixed \
+                                --no-progress \
+                                --format template \
+                                --template "@/usr/local/share/trivy/templates/html.tpl" \
+                                --output trivy-report.html \
+                                --exit-code 1 \
+                                --timeout 600s \
+                                $REGISTRY/$IMAGE:latest
+                        fi
                         
                         echo "✅ Trivy scan completed successfully"
                     '''
