@@ -103,14 +103,13 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         dir('student-man-main') {
             sh '''
     trivy image \
-        --skip-update \
-        --cache-dir /tmp/trivy-cache \
-        --security-checks vuln,misconfig \
-        --ignore-unfixed \
-        --exit-code 1 \
-        --format json \
-        --output trivy-report.json \
-        ${REGISTRY}/${IMAGE}:latest
+  --scanners vuln,misconfig \
+  --ignore-unfixed \
+  --exit-code 1 \
+  --format json \
+  --output trivy-report.json \
+  gharbimahdi/studentmang-app:latest
+
 '''
 
         }
