@@ -98,7 +98,7 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
 
         /* ------------------------- TRIVY --------------------------- */
-        stage('Trivy Scan (Container Security)') {
+       stage('Trivy Scan (Container Security)') {
     steps {
         dir('student-man-main') {
             sh '''
@@ -112,7 +112,8 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
                     --severity HIGH,CRITICAL \
                     --ignore-unfixed \
                     --no-progress \
-                    --timeout 90s \
+                    --timeout 10m \
+                    --db-repo mirror.gcr.io/aquasec/trivy-db \
                     --format template \
                     --template "@/usr/local/share/trivy/templates/html.tpl" \
                     --output trivy-report.html \
@@ -126,6 +127,7 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
     }
 }
+
 
 
         /* -------------------------- NIKTO -------------------------- */
