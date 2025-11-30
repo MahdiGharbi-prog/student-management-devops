@@ -14,23 +14,28 @@ pipeline {
     stages {
 
         /* ------------------------ GITLEAKS ------------------------ */
-        stage('Clone Repository & Secrets Scan (Gitleaks)') {
-            steps {
-                git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
+       stage('Clone Repository & Secrets Scan (Gitleaks)') {
+    steps {
+        git branch: 'master', url: 'https://github.com/MahdiGharbi-prog/student-management-devops.git'
 
-                dir('student-man-main') {
-                    sh '''
-                        echo "🔒 Running Gitleaks Secrets Scan..."
-                        gitleaks detect -f json --report-path $GITLEAKS_REPORT --source .
-                    '''
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
-                }
-            }
+        dir('student-man-main') {
+            sh '''
+                echo "🔒 Running Gitleaks Secrets Scan..."
+                gitleaks detect \
+                    -f json \
+                    --report-path $GITLEAKS_REPORT \
+                    --exit-code 1 \
+                    --source .
+            '''
         }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: "student-man-main/${GITLEAKS_REPORT}", allowEmptyArchive: true
+        }
+    }
+}
+
 
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
