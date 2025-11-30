@@ -97,7 +97,8 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
             }
         }
 
-        /* ------------------------- TRIVY --------------------------- */
+         /* ------------------------- TRIVY --------------------------- */
+       
        stage('Trivy Scan') {
     steps {
         sh '''
