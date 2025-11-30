@@ -35,7 +35,7 @@ pipeline {
         /* ------------------------- MAVEN -------------------------- */
         stage('Build with Maven') {
             steps {
-                dir('C:\Users\mahdi\student-management-devops\student-man-main\student-management\pom.xml') {
+                dir('student-management-devops/student-man-main/student-management') {
                     sh 'mvn clean package -DskipTests'
                 }
             }
@@ -44,7 +44,7 @@ pipeline {
         /* ------------------------- OWASP DC ------------------------ */
         stage('Dependency Check (SCA)') {
             steps {
-                dir('student-management-devops') {
+                dir('student-management-devops/student-man-main/student-management') {
                     sh '''
                         echo "🔍 Running OWASP Dependency-Check..."
                         mvn org.owasp:dependency-check-maven:check \
@@ -56,7 +56,7 @@ pipeline {
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'student-management-devops/target/dependency-check-report.html', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'student-management-devops/student-man-main/student-management/target/dependency-check-report.html', allowEmptyArchive: true
                 }
             }
         }
@@ -64,7 +64,7 @@ pipeline {
         /* -------------------------- SONAR -------------------------- */
         stage('SonarQube (SAST)') {
             steps {
-                dir('student-management-devops') {
+                dir('student-management-devops/student-man-main/student-management') {
                     withSonarQubeEnv('SonarQube') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             sh '''
@@ -85,7 +85,7 @@ pipeline {
             steps {
                 dir('student-management-devops') {
                     script {
-                        GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                        env.GIT_COMMIT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
 
                         sh """
                             echo "🐳 Building Docker image..."
@@ -100,6 +100,7 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh '''
+                    echo "🔍 Running Trivy image scan..."
                     trivy image \
                         --scanners vuln,misconfig \
                         --ignore-unfixed \
@@ -172,7 +173,7 @@ pipeline {
                     <body>
                         <h2>📘 DevSecOps Pipeline Summary</h2>
                         <ul>
-                            <li><a href='target/dependency-check-report.html'>OWASP Dependency Check</a></li>
+                            <li><a href='student-man-main/student-management/target/dependency-check-report.html'>OWASP Dependency Check</a></li>
                             <li><a href='../trivy-report.json'>Trivy Image Scan</a></li>
                             <li><a href='nikto-report.html'>Nikto DAST Scan</a></li>
                             <li><a href='${GITLEAKS_REPORT}'>Gitleaks Secrets Scan</a></li>
@@ -190,7 +191,6 @@ pipeline {
 
     /* -------------------------- GLOBAL POST ---------------------- */
     post {
-
         always {
             echo '🎯 Pipeline finished. Reports generated successfully.'
         }
