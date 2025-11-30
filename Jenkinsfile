@@ -102,13 +102,15 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
     steps {
         dir('student-man-main') {
             sh '''
-    trivy image \
+  trivy image \
+  --timeout 10m \
   --scanners vuln,misconfig \
   --ignore-unfixed \
   --exit-code 1 \
   --format json \
   --output trivy-report.json \
   gharbimahdi/studentmang-app:latest
+
 
 '''
 
