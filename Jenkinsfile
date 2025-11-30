@@ -69,22 +69,23 @@ pipeline {
 
         /* -------------------------- SONAR -------------------------- */
         stage('SonarQube Analysis') {
-            steps {
-                dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                            sh '''
-                                echo "📊 Running SonarQube static code analysis..."
-                                mvn sonar:sonar \
-                                    -Dsonar.projectKey=studentmang-app \
-                                    -Dsonar.host.url=$SONAR_HOST_URL \
-                                    -Dsonar.token=$SONAR_TOKEN
-                            '''
-                        }
-                    }
+    steps {
+        dir('student-man-main') {
+            withSonarQubeEnv('SonarQube') {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        echo "📊 Running SonarQube static code analysis..."
+                        mvn -B sonar:sonar \
+                            -Dsonar.projectKey=studentmang-app \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.token=$SONAR_TOKEN
+                    '''
                 }
             }
         }
+    }
+}
+
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
