@@ -64,23 +64,22 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
 
         /* -------------------------- SONAR -------------------------- */
         stage('SonarQube (SAST)') {
-            environment {
-                SONARQUBE = credentials('sonarqube-token')
-            }
-            steps {
-                dir('student-man-main') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh """
-                            echo "📊 Running SonarQube static code analysis..."
-                            mvn sonar:sonar \
-                                -Dsonar.projectKey=studentmang-app \
-                                -Dsonar.host.url=$SONAR_HOST_URL \
-                                -Dsonar.login=$SONARQUBE || true
-                        """
-                    }
+    steps {
+        dir('student-man-main') {
+            withSonarQubeEnv('SonarQube') {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        echo "📊 Running SonarQube static code analysis..."
+                        mvn sonar:sonar \
+                            -Dsonar.projectKey=studentmang-app \
+                            -Dsonar.host.url=$SONAR_HOST_URL \
+                            -Dsonar.token=$SONAR_TOKEN
+                    '''
                 }
             }
         }
+    }
+}
 
         /* ------------------------- DOCKER -------------------------- */
         stage('Build Docker Image') {
