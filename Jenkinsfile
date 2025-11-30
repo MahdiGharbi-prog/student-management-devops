@@ -113,7 +113,6 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
                     --ignore-unfixed \
                     --no-progress \
                     --timeout 10m \
-                    --db-repo mirror.gcr.io/aquasec/trivy-db \
                     --format template \
                     --template "@/usr/local/share/trivy/templates/html.tpl" \
                     --output trivy-report.html \
@@ -127,6 +126,7 @@ stage('Clone Repository & Secrets Scan (Gitleaks)') {
         }
     }
 }
+
 
 
 
